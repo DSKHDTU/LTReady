@@ -1,3 +1,11 @@
+# Data
+data/raw/*
+data/processed/*
+data/final/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/final/.gitkeep
+
 # Python
 __pycache__/
 *.pyc
