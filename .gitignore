@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.spyproject/
+*.egg-info/
