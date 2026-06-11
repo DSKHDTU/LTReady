@@ -213,7 +213,7 @@ publication or repository details, and a DOI if one is assigned, e.g. via*
 
 This project is licensed under the BSD 3-Clause Clear License - see the
 
-\[LICENSE](LICENSE) file for details.
+   [LICENSE](LICENSE) file for details.
 
 
 
