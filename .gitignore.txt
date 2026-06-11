@@ -1,0 +1,13 @@
+# Data folders (contain real building/meter data - do not publish)
+data/raw/
+data/processed/
+data/final/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.spyproject/
+*.egg-info/
