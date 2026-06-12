@@ -116,15 +116,13 @@ LTReady requires the following inputs, prepared by the user:
 1. **Master ID file** (`master\\\_ids\\\_{CASE\\\_NAME}.pkl`): a pickled `pandas.DataFrame` with
 one row per property, containing at least:
 
-   * `BFEnummer` - BFE number (Danish property identifier), or `NaN`
-   * `husnummer\\\_ID` - address unit ID, or `NaN`
-   * `address` - property address (used to merge meter data, optional)
-   * `lat`, `lon` - property coordinates (used for the map, optional)
+   * `BFEnummer` - BFE number (Danish property identifier), or `NaN` (can be obtained via https://datafordeler.dk/)
+   * `husnummer\\\_ID` - address unit ID, or `NaN` (can be obtained via https://datafordeler.dk/)
    * `vejnavn`, `husnummer` - street name / house number (fallback display
 fields if no EPC is found, optional)
 2. **Component ID file** (`component\\\_ids\\\_{CASE\\\_NAME}.pkl`): a pickled `pandas.DataFrame`
 defining how buildings/meters are grouped into "components" (e.g. all
-buildings sharing a single district heating substation), containing:
+buildings sharing a single meter), containing:
 
    * `component\\\_id` - user-defined ID for each component
    * `bfe` - BFE number(s) belonging to this component

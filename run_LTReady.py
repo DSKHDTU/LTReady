@@ -19,10 +19,8 @@ Required input data
 --------------------
 1. Master ID file (`master_ids_{CASE_NAME}.pkl`): a pickled pandas DataFrame with one row
    per property, containing at least the columns:
-       - "BFEnummer"    : BFE number (Danish property identifier), or NaN
-       - "husnummer_ID" : address unit ID, or NaN
-       - "address"      : property address (used to merge meter data, optional)
-       - "lat", "lon"   : property coordinates (used for the map, optional)
+       - "BFEnummer"    : BFE number (Danish property identifier), or NaN (can be obtained via https://datafordeler.dk/)
+       - "husnummer_ID" : address unit ID, or NaN (can be obtained via https://datafordeler.dk/)
        - "vejnavn", "husnummer" : street name / house number (fallback display
          fields if no EPC is found, optional)
 
