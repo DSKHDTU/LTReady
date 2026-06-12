@@ -190,18 +190,18 @@ definitions and how to obtain a free API key, see:
 
 ## Citation
 
-If you use LTReady in your work, please cite:
-
-> \\\[Author Name(s)], "\\\[Title of the associated paper/report/repository]",
-> \\\[Journal/Conference/Repository], \\\[Year]. \\\[DOI or URL]
+If you use LTReady in your work, please cite [*paper*](URL)
 
 ```bibtex
-@misc{ltready,
-  author = {\\\[Author Name(s)]},
-  title  = {LTReady: A tool for assessing low-temperature district heating readiness of multi-family buildings},
-  year   = {\\\[Year]},
-  url    = {\\\[Repository URL]},
-  note   = {\\\[DOI, if available]}
+@article{ltready,
+   author = {Donya Sheikh Khan, Kevin Michael Smith and Christian Anker Hviid},
+   doi = {},
+   issue = {1},
+   journal = {Energy},
+   pages = {},
+   title = {Low-temperature district heating readiness of multi-family buildings: Potential and constraints in a Danish network of 2,441 buildings},
+   volume = {},
+   year = {2026},
 }
 ```
 
