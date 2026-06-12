@@ -61,7 +61,7 @@ import sys
 
 # A short identifier for this case study, used as a suffix in all generated
 # file names.
-CASE_NAME = "Frederiksberg" #"case_study_id"
+CASE_NAME = "case_study_id" #
 
 # Calendar year(s) of meter data available. If only one year of meter data is
 # available, set YEAR2 = None and HD_year2 = None; the workflow will then skip
@@ -72,22 +72,22 @@ YEAR2 = 2023  # Set to None if only one year of meter data is available
 # ---------------------------------------------------------------------- #
 # EMOWeb credentials (Part A) - used to retrieve EPC data via the EMOWeb API
 # ---------------------------------------------------------------------- #
-EMAIL = "dskh@dtu.dk" #"your_email@here.com"
-PASSWORD = "12345678" #"your_password_here"
+EMAIL = "your_email@here.com" #
+PASSWORD = "your_password_here" #
 
 # ---------------------------------------------------------------------- #
 # DMI Open Data API key (Part B) - used to retrieve weather data
 # Obtain a free key at https://opendatadocs.dmi.govcloud.dk/en/Authentication
 # ---------------------------------------------------------------------- #
-API_KEY_DMI = "534e48cb-4650-494e-8b78-0516d60c4c99" #"your_api_key_here"
+API_KEY_DMI = "your_api_key_here" #
 
 # DMI weather station IDs used to retrieve each weather parameter. These can
 # all be the same station, or different stations, depending on which nearby
 # stations measure each parameter. Find station IDs at
 # https://www.dmi.dk/friedata/observationer/
-STATION_TEMPERATURE = "06186" #"station_id_for_outdoor_temperature"
-STATION_WIND = "06181" #"station_id_for_wind_data_(direction_and_speed)"
-STATION_SOLAR_RADIATION = "06187" #"station_id_for_solar_radiation"
+STATION_TEMPERATURE = "station_id_for_outdoor_temperature" #
+STATION_WIND = "station_id_for_wind_data_(direction_and_speed)" #
+STATION_SOLAR_RADIATION = "station_id_for_solar_radiation" #
 
 # ---------------------------------------------------------------------- #
 # Meter and component identifiers
@@ -178,7 +178,7 @@ var_mnorm = ['Minimum_Treturn',  # Minimum return temperature using model-predic
 var_deltaT = var_mnorm + ['Current_Nominal_Totalheatloss', # Peak heat loss saved to verify the peak heat loss is preserved by the deltaT method
                           'Current_Nominal_Massflow']      # Peak mass flow at the chosen temperature drop (10 or 20 degC)
                      
-# Index into var_mnorm / var_deltaT selecting the variable to plot on the map (starting from 0. var_mnorm ends with index 7.)
+# Index into var_mnorm / var_deltaT selecting the variable to obtain final dataset (starting from 0. var_mnorm ends with index 7.)
 ind = 1
 
 #%% CONFIGURATION OF FOLDERS
