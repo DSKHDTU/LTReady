@@ -60,7 +60,7 @@ Public\\\_Tool/
 
 1. **Part A - EPC data and radiator design values**: retrieves EPC records
 via the EMOWeb API, calculates historical design heat losses and nominal
-radiator parameters (K-value, design mass flow, design supply/return
+radiator parameters (Radiator heat output, K-value, design mass flow, design supply/return
 temperatures), and aggregates these onto user-defined "components".
 2. **Part B - Predicted peak space heating consumption**: processes raw
 hourly heat meter data, disaggregates space heating from domestic hot

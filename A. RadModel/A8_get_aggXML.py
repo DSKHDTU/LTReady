@@ -134,14 +134,13 @@ def cleanDF(df: pd.DataFrame, otherColumns: list = None) -> pd.DataFrame:
     # Remove rows with missing EPCs
     df = df.dropna(subset=['EPCSerial'])
 
-    # Remove duplicates
     ## We got EPCSerial from BFE and husnr. BFE is parent to husnr, so we can drop husnr.
     ## Meter id and location id has nothing to do with obtaining the EPCSerials. So we can safely remove them.
     ## We can have duplicate of EPCSerial because:
         ## BFE was repeated (because of different husnr id linking to same BFE)
         ## Because husnr got the same EPCs as we got from using the BFE
     
-    # Drop meter and location ID as they are not useful in aggregating
+    # Drop meter location ID and husnummer ID as they are not useful in aggregating
     df = df.drop(columns=['husnummer_ID'])#,'meter_ID','location_ID'])
         
     return df
@@ -577,54 +576,86 @@ def prefix_name_to_column(data, prefix, exclude_columns):
     
     return data
 
-def epc_scale_adj(df: pd.DataFrame, column: str = "EPC_Class_Property") -> tuple:
+def epc_weighted_average(group, epc_col='EPC_Class_Property', weight_col='FloorArea', return_label=False):
     """
-    df: pd.DataFrame
-        Dataframe containing the EPC class column to convert.
-    column: str, optional
-        Name of the column with EPC class labels (default "EPC_Class_Property").
-
-    Returns
-    -------
-    tuple of (pd.DataFrame, dict)
-        (df, reverse_map): `df` with `column` converted to a numeric scale
-        (1=G ... 7=A), and `reverse_map` mapping the numeric scale back to
-        the letter labels.
-
-        EPC label aggregation is calculated based on floorArea-weighted average.
-        Since EPC labels can follow old label scale definitions the table in https://www.hbemo.dk/vaerktoejer-og-tabeller/energimaerkeskala/omregningstabeller
-        was used in converting to the current 2018 scale definition.
-        
-        Except for scale A we merge all A-variations under 'A'.
-        
-    """
+    Calculates the floor-area weighted average of EPC labels for a given cluster of buildings.
+    Safely parses lists/strings/arrays on the fly without mutating the original dataframe.
     
-    # Mapping of old to current (simplified) scale
+    If return_label=True, converts the final numeric average back to a string grade (A-G).
+    """
     mapping = {
-        'G2': 'G', 'G1': 'G', 'F2': 'G',
-        'E2': 'F', 'F1': 'F',
-        'D2': 'E', 'E1': 'E',
-        'C2': 'D', 'D1': 'D',
-        'B2': 'C', 'C1': 'C',
-        'B1': 'B',
-        'A2': 'A', 'A1': 'A',
-        'A2010': 'A', 'A2015': 'A', 'A2020': 'A',
-        'G': 'G', 'F': 'F', 'E': 'E', 'D': 'D',
-        'C': 'C', 'B': 'B', 'A': 'A'
+        'G2': 'G', 'G1': 'G', 'F2': 'G', 'E2': 'F', 'F1': 'F',
+        'D2': 'E', 'E1': 'E', 'C2': 'D', 'D1': 'D', 'B2': 'C', 'C1': 'C',
+        'B1': 'B', 'A2': 'A', 'A1': 'A', 'A2010': 'A', 'A2015': 'A', 'A2020': 'A',
+        'G': 'G', 'F': 'F', 'E': 'E', 'D': 'D', 'C': 'C', 'B': 'B', 'A': 'A'
     }
-    df[column] = df[column].map(mapping)
     
-    # Convert scale to numeric ready for weighting
+    scale_map = {'G': 1, 'F': 2, 'E': 3, 'D': 4, 'C': 5, 'B': 6, 'A': 7}
+    reverse_map = {1: 'G', 2: 'F', 3: 'E', 4: 'D', 5: 'C', 6: 'B', 7: 'A'}
     
-    # Ordered categories from worst (G) to best (A)
-    order = ['G','F','E','D','C','B','A']
-    scale_map = {label: i for i, label in enumerate(order, start=1)}
-    reverse_map = {v: k for k, v in scale_map.items()}
+    total_weighted_score = 0.0
+    total_valid_weight = 0.0
     
-    # Numeric encoding
-    df[column] = df[column].map(scale_map)
+    # Iterate through the rows in this specific group/cluster
+    for idx, row in group.iterrows():
+        raw_input = row[epc_col]
+        weight = row[weight_col]
+        
+        # 1. Skip if weight is missing or zero
+        if pd.isna(weight) or weight <= 0:
+            continue
+            
+        # 2. Skip if EPC is missing entirely
+        if raw_input is None or (isinstance(raw_input, float) and np.isnan(raw_input)):
+            continue
+            
+        # 3. Safely parse the EPC input into a list
+        epc_list = []
+        if isinstance(raw_input, str):
+            raw_input = raw_input.strip()
+            if raw_input.startswith('[') and raw_input.endswith(']'):
+                try:
+                    epc_list = ast.literal_eval(raw_input)
+                except (ValueError, SyntaxError):
+                    epc_list = [raw_input]
+            else:
+                epc_list = [raw_input]
+        elif isinstance(raw_input, (list, np.ndarray, set)):
+            epc_list = list(raw_input)
+            
+        if not epc_list:
+            continue
+            
+        # 4. Convert the list of labels to numeric values
+        numeric_values = []
+        for epc in epc_list:
+            epc_str = str(epc).strip() if epc is not None else ''
+            standardized_label = mapping.get(epc_str, epc_str)
+            num = scale_map.get(standardized_label)
+            if num is not None:
+                numeric_values.append(num)
+                
+        # 5. Calculate row average and apply cluster weight
+        if numeric_values:
+            row_epc_score = sum(numeric_values) / len(numeric_values)
+            total_weighted_score += (row_epc_score * weight)
+            total_valid_weight += weight
+            
+    # 6. Return final result
+    if total_valid_weight == 0:
+        return np.nan
+        
+    avg_score = total_weighted_score / total_valid_weight
     
-    return df, reverse_map
+    # 7. Convert back to string if requested
+    if return_label:
+        # standard "round half up" math to avoid Python's banker's rounding bias
+        rounded_score = math.floor(avg_score + 0.5) 
+        # keep it safely within the 1-7 bounds
+        clamped_score = max(1, min(7, rounded_score)) 
+        return reverse_map[clamped_score]
+        
+    return avg_score
 
 def aggBBR(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, compID: pd.DataFrame) -> None:
     """
@@ -658,13 +689,15 @@ def aggBBR(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, co
     
     # Make column type hashable (for removing duplicates)
     df['Type of system'] = df['Type of system'].apply(lambda x: str(x) if isinstance(x, (list, np.ndarray)) else x)
+    df['EPC_Class_Property'] = df['EPC_Class_Property'].apply(lambda x: str(x) if isinstance(x, (list, np.ndarray)) else x)
     df['hasDH'] = df['hasDH'].apply(lambda x: str(x) if isinstance(x, (list, np.ndarray)) else x)
     
-    # Remove duplicates
+    # Remove duplicates (because of how EPCs were fetched we have duplicates, requires we remove husnummer ID)
     df = df.drop_duplicates()
     
     # Make column type list
     df['Type of system'] = df['Type of system'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and x.startswith('[') else x)
+    df['EPC_Class_Property'] = df['EPC_Class_Property'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and x.startswith('[') else x)
     df['hasDH'] = df['hasDH'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and x.startswith('[') else x)
     
     # Prepare column 
@@ -672,10 +705,7 @@ def aggBBR(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, co
     df['YrRenList'] = df['YearOfRenovation']
     df['UseCodeList'] = df['UseCode']
     df['EPC_Class_List'] = df['EPC_Class_Property']
-    
-    # Convert and adjust EPC label scale
-    df, reverse_map = epc_scale_adj(df)
-    
+        
     # Add component ID
     df = getCmpID4Agg(df, compID)
     
@@ -687,7 +717,7 @@ def aggBBR(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, co
         'ValidTo': lambda x: list(x.dropna()),
         'lat': lambda x: weighted_average(df.loc[x.index],'lat','FloorArea'),
         'lon': lambda x: weighted_average(df.loc[x.index],'lon','FloorArea'),
-        'EPC_Class_Property': lambda x: weighted_average(df.loc[x.index],'EPC_Class_Property','FloorArea'),
+        'EPC_Class_Property': lambda x: epc_weighted_average(df.loc[x.index],'EPC_Class_Property','FloorArea', return_label=True),
         'EPC_Class_List': lambda x: list(x.dropna()),
         'BuildingNumber': lambda x: list(x.dropna()),
         'UseCode': lambda x: weighted_average(df.loc[x.index],'UseCode','FloorArea'),
@@ -704,18 +734,16 @@ def aggBBR(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, co
         'DwellingArea': 'sum',
         'CommercialArea': 'sum'
         }).reset_index()
-        
-    # Round EPC label to nearest scale label
-    aggregated_df["EPC_Class_Property"] = aggregated_df["EPC_Class_Property"].round().astype(int).map(reverse_map)
-        
+           
     # Set to empty list
     aggregated_df["Type of system"] = aggregated_df["Type of system"].apply(lambda x: [] if x == 0 else x)
+    aggregated_df["EPC_Class_List"] = aggregated_df["EPC_Class_List"].apply(lambda x: [] if x == 0 else x)
     
     # Add number of buildings by counting BuildingNumber
     aggregated_df['NumberOfBuildings'] = aggregated_df["BuildingNumber"].apply(lambda x: len(x))
     
     with open(path_save_data, 'wb') as f:
-        pickle.dump(aggregated_df, f) 
+        pickle.dump(aggregated_df, f)  
     
 def aggCurrent(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame, compID: pd.DataFrame) -> None:
     """
@@ -812,14 +840,10 @@ def aggMaxMin(minOrMax: str, path_load_data: str, path_load_data_BBR: str, path_
     
     del f
     
-    df_BBR = cleanDF(df_BBR)[['BFEnummer','EPCSerial','BuildingNumber','FloorArea']].drop_duplicates()
-    
-    # Change naming
-    df.rename(columns={'n': 'rad_n'}, inplace=True)
-    
     # Drop missing EPCs
-    df = cleanDF(df, otherColumns=['rad_n']) 
-    
+    df = cleanDF(df) 
+    df_BBR = cleanDF(df_BBR)[['BFEnummer','EPCSerial','LabelStatus','ValidFrom','ValidTo','BuildingNumber','FloorArea']].drop_duplicates()
+        
     # Get only latest EPCs
     df = df[df['EPCSerial'].isin(EPCs2Keep['EPCSerial'])]
     
@@ -829,20 +853,16 @@ def aggMaxMin(minOrMax: str, path_load_data: str, path_load_data_BBR: str, path_
     # Remove duplicates
     df = df.drop_duplicates()
 
-    # Calculate the supply/return temperature using current EPC
-    df = prefix_name_to_column(df, minOrMax + ' ', ['BFEnummer','husnummer_ID','EPCSerial','LabelStatus','ValidFrom','ValidTo','BuildingNumber','rad_n','expected n','Tin design','T design supply','T design return'])
+    # Add prefix to column names
+    df = prefix_name_to_column(df, minOrMax + ' ', ['BFEnummer','EPCSerial','LabelStatus','ValidFrom','ValidTo','BuildingNumber','rad_n','fs','Tin design','T design supply','T design return'])
     
     # Merge floor area with df
-    df = pd.merge(df, df_BBR, how = 'left', on = ['BFEnummer','EPCSerial','BuildingNumber'])
+    df = pd.merge(df, df_BBR, how = 'left', on = ['BFEnummer','EPCSerial','LabelStatus','ValidFrom','ValidTo','BuildingNumber'])
     
     # Add component ID
     df = getCmpID4Agg(df, compID)
     
-    # Prepare column 
-    df[minOrMax + ' TsupplyList'] = df[minOrMax + ' Tsupply']
-    df[minOrMax + ' TreturnList'] = df[minOrMax + ' Treturn']
-    
-    aggregated_df = df.groupby(['component_id', 'rad_n']).agg({
+    aggregated_df = df.groupby(['component_id', 'fs']).agg({
         'BFEnummer': lambda x: list(x.dropna()),
         'EPCSerial': lambda x: list(x.dropna()),
         'LabelStatus': lambda x: list(x.dropna()),
@@ -857,15 +877,12 @@ def aggMaxMin(minOrMax: str, path_load_data: str, path_load_data_BBR: str, path_
         minOrMax + ' InclMechanicalVentilationLoss': lambda x: list(x.dropna()),
         'T design supply': lambda x: weighted_average(df.loc[x.index],'T design supply','FloorArea'),
         'T design return': lambda x: weighted_average(df.loc[x.index],'T design return','FloorArea'),
-        'expected n': lambda x: weighted_average(df.loc[x.index],'expected n', minOrMax + ' TotalHeatloss'),
+        'rad_n': 'mean',
         minOrMax + ' K': 'sum',
         minOrMax + ' Tout design': lambda x: weighted_average(df.loc[x.index],minOrMax + ' Tout design','FloorArea'),
         'Tin design': lambda x: weighted_average(df.loc[x.index],'Tin design', minOrMax + ' TotalHeatloss'),
         minOrMax + ' Design massFlow': 'sum',
-        minOrMax + ' Tsupply': lambda x: weighted_average(df.loc[x.index],minOrMax + ' Tsupply','FloorArea'),
-        minOrMax + ' Treturn': lambda x: weighted_average(df.loc[x.index],minOrMax + ' Treturn','FloorArea'),
-        minOrMax + ' TsupplyList': lambda x: list(x.dropna()),
-        minOrMax + ' TreturnList': lambda x: list(x.dropna())
+        minOrMax + ' Radiator power': 'sum',
         }).reset_index()
     
     # Add number of buildings by counting BuildingNumber

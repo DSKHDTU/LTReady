@@ -23,7 +23,7 @@ from datetime import datetime
 import pandas as pd
 import copy
 
-def get_radiator_design(Tsupply: float, Treturn: float, Ti: float, Power: float, n,
+def get_radiator_design(Tsupply: float, Treturn: float, Ti: float, Power: float, n: float,
                          c_water: float = 4189, rho_water: float = 980, getKValue: bool = True):
     """
     Calculate either the radiator heat loss coefficient K or the design mass
@@ -115,13 +115,16 @@ def get_supply_return_temperature(m: float, K: float, Power: float, Ti: float, n
     
     return Tsupply, Treturn
 
-def calc_design_values(xml,getDesignRange,rad_n):    
-    K_values = {"n": rad_n + [xml["DesignCondition"]["expected n"]],
-                "K": []}
-
-    K_values["K"].extend([None] * len(K_values["n"]))                   
-                                   
-    K_values = pd.DataFrame(K_values)
+def calc_design_values(xml,getDesignRange,rad_n,fs):        
+    rad = {"fs": fs,
+           "Radiator power": [],
+           "K": [],
+           "Design massFlow": []}
+    rad["Radiator power"].extend([None] * len(rad["fs"])) 
+    rad["K"].extend([None] * len(rad["fs"]))  
+    rad["Design massFlow"].extend([None] * len(rad["fs"]))
+                                                   
+    rad = pd.DataFrame(rad)
     
     Tsupply = xml["DesignCondition"]["T design supply"] 
     Treturn = xml["DesignCondition"]["T design return"] 
@@ -131,45 +134,14 @@ def calc_design_values(xml,getDesignRange,rad_n):
         Power = xml["DesignCondition"]["Design Heatloss Min"]["TotalHeatloss"]
     elif getDesignRange == "Max":
         Power = xml["DesignCondition"]["Design Heatloss Max"]["TotalHeatloss"]
-        
-    K_values['K'] = K_values.apply(lambda row: get_radiator_design(Tsupply, Treturn, Ti, Power, row['n']), axis = 1)
-    m = get_radiator_design(Tsupply, Treturn, Ti, Power, n=None, getKValue=False)
     
-    return K_values, m
+    rad["Radiator power"] = rad.apply(lambda row: Power*row['fs'], axis = 1)    
+    rad['K'] = rad.apply(lambda row: get_radiator_design(Tsupply, Treturn, Ti, row["Radiator power"], rad_n), axis = 1)
+    rad['Design massFlow'] = rad.apply(lambda row: get_radiator_design(Tsupply, Treturn, Ti, row["Radiator power"], n=None, getKValue=False), axis = 1)
     
-def calc_temperature_values(xml,getDesignRange):
-    Power = xml["DesignCondition"]["Design Heatloss Current"]["TotalHeatloss"]
-    Ti = xml["DesignCondition"]["Tin design"]
+    return rad[['fs','K']], rad[['fs','Design massFlow']], rad[['fs','Radiator power']]
     
-    if getDesignRange == "Min":
-        m = xml["DesignCondition"]["Design Heatloss Min"]["Design massFlow"]
-        rad_n = xml["DesignCondition"]["Design Heatloss Min"]["Radiator parameter"]["n"]
-        K = xml["DesignCondition"]["Design Heatloss Min"]["Radiator parameter"]["K"]
-        
-    elif getDesignRange == "Max":
-        m = xml["DesignCondition"]["Design Heatloss Max"]["Design massFlow"]
-        rad_n = xml["DesignCondition"]["Design Heatloss Max"]["Radiator parameter"]["n"]
-        K = xml["DesignCondition"]["Design Heatloss Max"]["Radiator parameter"]["K"]
-        
-    temp_values = {"n": rad_n,
-                   "K": K,
-                   "Tsupply": [],
-                   "Treturn": []}
-        
-    temp_values["Tsupply"].extend([None] * len(temp_values["n"]))
-    temp_values["Treturn"].extend([None] * len(temp_values["n"])) 
-    
-    temp_values = pd.DataFrame(temp_values)
-    
-    values = temp_values.apply(lambda row: get_supply_return_temperature(m, row['K'], Power, Ti, row['n']) , axis = 1)
-    temp_values['Tsupply'], temp_values['Treturn'] = zip(*values)
-    
-    temp_values = temp_values.drop('K', axis=1)
-    
-    return temp_values
-
-
-def get_DHTemperatures(path_load_data: str, path_save_data: str) -> None:
+def get_DHTemperatures(path_load_data: str, path_save_data: str, n: float, fs: list) -> None:
     """
     Calculate the nominal radiator parameters (K, design mass flow) and the
     minimum supply/return temperatures for each building, and save the result.
@@ -180,6 +152,10 @@ def get_DHTemperatures(path_load_data: str, path_save_data: str) -> None:
     path_save_data: str
         File path (.pkl) where the enriched dataset is saved. Can be the same
         as path_load_data to overwrite in place.
+    n: float
+        Radiator exponent.
+    fs: list
+        Radiator sizing factor.
 
     Returns
     -------
@@ -197,17 +173,14 @@ def get_DHTemperatures(path_load_data: str, path_save_data: str) -> None:
     # Assumptions about historical values
     now_yr = datetime.now().year
 
-    # Radiator exponent range
-    n = [1.3]
-
     # SUPPLY AND RETURN TEMPERATURES
     typical_supplyreturn = {
-        (1700, 1960):       {'Supply temperature': 90,     'Return temperature': 70,     'n': 1.3},
-        (1961, 1972):       {'Supply temperature': 80,     'Return temperature': 60,     'n': 1.3},
-        (1973, 1978):       {'Supply temperature': 80,     'Return temperature': 40,     'n': 1.3},
-        (1979, 1998):       {'Supply temperature': 70,     'Return temperature': 40,     'n': 1.3},
-        (1999, 2012):       {'Supply temperature': 70,     'Return temperature': 40,     'n': 1.3},
-        (2013, now_yr):     {'Supply temperature': 60,     'Return temperature': 40,     'n': 1.3},
+        (1700, 1960):       {'Supply temperature': 90,     'Return temperature': 70},
+        (1961, 1972):       {'Supply temperature': 80,     'Return temperature': 60},
+        (1973, 1978):       {'Supply temperature': 80,     'Return temperature': 40},
+        (1979, 1998):       {'Supply temperature': 70,     'Return temperature': 40},
+        (1999, 2012):       {'Supply temperature': 70,     'Return temperature': 40},
+        (2013, now_yr):     {'Supply temperature': 60,     'Return temperature': 40},
     }
 
     # Run and save
@@ -224,7 +197,6 @@ def get_DHTemperatures(path_load_data: str, path_save_data: str) -> None:
                 start, end = years
                 if start <= xml['BBR']['YearOfConstruction'] <= end:
                     xml["DesignCondition"]["T design supply"] = values['Supply temperature']
-                    xml["DesignCondition"]["expected n"] = values['n']
                     
                     if (not xml['heatingsystem'].empty) and any(xml['heatingsystem']['Type of system'] == 'Unified'):
                         xml["DesignCondition"]["T design return"] = values['Supply temperature'] - 10
@@ -233,16 +205,17 @@ def get_DHTemperatures(path_load_data: str, path_save_data: str) -> None:
                     
                     break
             
-            values = calc_design_values(xml, getDesignRange = "Min", rad_n = copy.deepcopy(n))
+            values = calc_design_values(xml, getDesignRange = "Min", rad_n = n, fs = copy.deepcopy(fs))
             xml["DesignCondition"]["Design Heatloss Min"]["Radiator parameter"] = values[0]
             xml["DesignCondition"]["Design Heatloss Min"]["Design massFlow"] = values[1]
+            xml["DesignCondition"]["Design Heatloss Min"]["Radiator power"] = values[2]
+            xml["DesignCondition"]["Design Heatloss Min"]["rad_n"] = n
             
-            values = calc_design_values(xml, getDesignRange = "Max", rad_n = copy.deepcopy(n))
+            values = calc_design_values(xml, getDesignRange = "Max", rad_n = n, fs = copy.deepcopy(fs))
             xml["DesignCondition"]["Design Heatloss Max"]["Radiator parameter"] = values[0]
             xml["DesignCondition"]["Design Heatloss Max"]["Design massFlow"] = values[1]
-            
-            xml["DesignCondition"]["Design Heatloss Current"]["Temperatures - Design Min"] = calc_temperature_values(xml, getDesignRange = "Min")
-            xml["DesignCondition"]["Design Heatloss Current"]["Temperatures - Design Max"] = calc_temperature_values(xml, getDesignRange = "Max")
+            xml["DesignCondition"]["Design Heatloss Max"]["Radiator power"] = values[2]
+            xml["DesignCondition"]["Design Heatloss Max"]["rad_n"] = n
     
     with open(path_save_data, 'wb') as f:
         pickle.dump(building_XML, f)     

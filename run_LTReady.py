@@ -8,7 +8,7 @@ below, then run this script to execute the full workflow.
 The workflow is divided into three parts:
 
     Part A: Obtains the EPC (Energy Performance Certificate) dataset and the
-            nominal radiator design values for each building.
+            design radiator nominal/design values for each building.
     Part B: Obtains the predicted peak space heating (SH) consumption for
             each meter/component, based on a data-driven heat loss model.
     Part C: Calculates the minimum supply and return temperatures achievable
@@ -112,8 +112,11 @@ Ws_peak = 5
 Tin = [20]
 Tin_peak = 20
 
-# Radiator exponent. [1.3] is the recommended value.
-Radn = [1.3]
+# Radiator exponent. 1.3 is the recommended value.
+Radn = 1.3
+
+# Radiator sizing factor
+fs = [0.85,1.0,1.05]
 
 # Which model parameter statistic(s) to use: central estimate ("Coef") and/or
 # the 95% confidence bounds ("Conf_up", "Conf_low").
@@ -147,7 +150,7 @@ upper_limit = 1
 # For indirectly connected district heating (DH) substations: specify a value
 # to account for the heat exchanger efficiency between the primary and
 # secondary side. This value is added to the calculated supply and return
-# temperatures to represent primary-side temperatures.
+# temperatures to enable comparison to primary-side / network temperatures.
 # For secondary-side temperatures, or directly connected DH substations, set
 # this value to 0.
 # ---------------------------------------------------------------------- #
@@ -155,6 +158,10 @@ temp_HEX = 5
 
 # ---------------------------------------------------------------------- #
 # Final dataset / plotting selection (Part C)
+# The supply/return temperatures are calculated under building-level hydraulic 
+# constraints (mnorm) or network-level hydraulic constraints (deltaT)
+# mnorm uses the calculated design mass flow. Network-level constraint fixes
+# temperature drop to 10 or 20 C at peak condition.
 # ---------------------------------------------------------------------- #
 
 # Toggle to select the final dataset / plot based on the "mnorm" method
@@ -312,7 +319,9 @@ get_heatloss(path_load_data=path_epc_xml,
 from A5_get_DHTemperatures import get_DHTemperatures
 
 get_DHTemperatures(path_load_data=path_epc_xml,
-                    path_save_data=path_epc_xml)
+                   path_save_data=path_epc_xml,
+                   n = Radn,
+                   fs = fs)
 
 # ---------------------------------------------------------------------- #
 # Extract the BBR (building registry) data into a flat table
@@ -517,9 +526,9 @@ get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
                        path_load_BBR=None,
                        col_HL='TotalHeatloss',
                        method='mnorm',
-                       paramb=None,
-                       Tinb=None,
-                       rad_nb=None)
+                       Tinb=Tin_peak,
+                       Wsb=None, 
+                       Toutb=None)
 
 # deltaT method
 get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
@@ -530,9 +539,9 @@ get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
                        path_load_BBR=path_agg_bbr,
                        col_HL='TotalHeatloss',
                        method='deltaT',
-                       paramb=None,
-                       Tinb=None,
-                       rad_nb=None)
+                       Tinb=Tin_peak,
+                       Wsb=Ws_peak, 
+                       Toutb=Tout_peak)
 
 # ---------------------------------------------------------------------- #
 # Identify and tag outliers, then select the relevant columns
@@ -607,7 +616,7 @@ else:
 selected_var = var_to_select[ind]
 
 df = adjust_nominal_values(path_data=path_final_use,
-                            radnb=Radn,
+                            fsb=fs,
                             Wsb=Ws,
                             Tinb=Tin,
                             Toutb=Tout,
@@ -623,14 +632,14 @@ with open(path_agg_bbr, 'rb') as f:
 
 # Plot a map of the selected metric
 map_plot(df_temp=adjust_nominal_values(path_data=path_final_use,
-                                        radnb=Radn,
+                                        fsb=fs,
                                         Wsb=[Ws_peak],
                                         Tinb=[Tin_peak],
                                         Toutb=[Tout_peak],
                                         paramb=["Coef"],
                                         var=var_to_select[1]),
          df_nom_heatloss=adjust_nominal_values(path_data=path_final_use,
-                                                radnb=Radn,
+                                                fsb=fs,
                                                 Wsb=[Ws_peak],
                                                 Tinb=[Tin_peak],
                                                 Toutb=[Tout_peak],
@@ -642,7 +651,8 @@ map_plot(df_temp=adjust_nominal_values(path_data=path_final_use,
          fig_save_name=f"{CASE_NAME}_map_plot",
          title_plot=(f"LTDH: <70\u00b0C, MTDH: 70-90\u00b0C. Tin = {Tin_peak}\u00b0C, "
                       f"Tout = {Tout_peak}\u00b0C, Ws = {Ws_peak} m/s, no sun. "
-                      f"Radiator exponent = {Radn}."),
+                      f"Radiator exponent = {Radn}."
+                      f"Radiator sizing = {fs}."),
          path_ids=compID)
 
 #%% Final datasets ready for analysis

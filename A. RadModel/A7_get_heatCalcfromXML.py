@@ -48,60 +48,6 @@ def get_heatCalcfromXML_optimized(path_load_data: str,
         validXMLs = [x for x in xmls if isinstance(x, dict)]
         return bool(validXMLs) and not all(x is None for x in validXMLs)
 
-    def py_merge_temp_rad(temps, rads):
-        """Pure Python equivalent to the pd.merge(..., on='n') with fallback"""
-
-        # Helper to safely force incoming data into a list of dictionaries
-        def _ensure_list(data):
-            if isinstance(data, pd.DataFrame):
-                return data.to_dict('records')
-            if isinstance(data, list):
-                return data
-            return [] # Fallback for None, NaN, etc.
-
-        temps = _ensure_list(temps)
-        rads = _ensure_list(rads)
-        
-        # Safe check for empty lists
-        if len(temps) == 0 and len(rads) == 0:
-            return []
-        
-        has_n_temps = any('n' in t for t in temps if isinstance(t, dict))
-        has_n_rads = any('n' in r for r in rads if isinstance(r, dict))
-        
-        res = []
-        # Attempt Inner Join on 'n'
-        if has_n_temps and has_n_rads:
-            rads_by_n = {}
-            for r in rads:
-                if isinstance(r, dict) and 'n' in r:
-                    rads_by_n.setdefault(r['n'], []).append(r)
-            
-            for t in temps:
-                if isinstance(t, dict):
-                    n = t.get('n')
-                    if n in rads_by_n:
-                        for r in rads_by_n[n]:
-                            res.append({**t, **r})
-                        
-        # Fallback to concat axis=1 equivalent if merge failed/empty
-        if not res:
-            for t, r in zip_longest(temps, rads, fillvalue={}):
-                t_dict = t if isinstance(t, dict) else {}
-                r_dict = r if isinstance(r, dict) else {}
-                res.append({**t_dict, **r_dict})
-                
-        # Deduplicate (equivalent to .drop_duplicates())
-        seen = set()
-        dedup_res = []
-        for row in res:
-            # Create a hashable representation to check duplicates (ignoring nested lists/dicts if any)
-            tup = tuple(sorted((k, str(v)) for k, v in row.items() if not isinstance(v, (list, dict))))
-            if tup not in seen:
-                seen.add(tup)
-                dedup_res.append(row)
-        return dedup_res
-
     # --- Load pickle ---
     with open(path_load_data, 'rb') as f:
         building_XML = pickle.load(f)
@@ -138,7 +84,7 @@ def get_heatCalcfromXML_optimized(path_load_data: str,
 
             dc = xml.get('DesignCondition', {})
             df0 = dc.get('Design Heatloss Current', {})
-            base_current = {k: v for k, v in df0.items() if k not in ('Temperatures - Design Max', 'Temperatures - Design Min')}
+            base_current = {k: v for k, v in df0.items()}
             
             bbr = xml.get('BBR') or {}
             building_number_val = bbr.get('BuildingNumber')
@@ -160,17 +106,19 @@ def get_heatCalcfromXML_optimized(path_load_data: str,
             keys_exclude = {'Design Heatloss Current', 'Design Heatloss Max', 'Design Heatloss Min'}
             tmp_dict = {k: v for k, v in dc.items() if k not in keys_exclude}
 
-            temps_max = df0.get('Temperatures - Design Max', [])
-            temps_min = df0.get('Temperatures - Design Min', [])
+            radpower_max = df1.get('Radiator power', [])
+            radpower_min = df2.get('Radiator power', [])
+            m_max = df1.get('Design massFlow', [])
+            m_min = df2.get('Design massFlow', [])
             radparam_max = df1.get('Radiator parameter', [])
             radparam_min = df2.get('Radiator parameter', [])
 
-            # Pure Python Merge
-            rad1_dicts = py_merge_temp_rad(temps_max, radparam_max)
-            rad2_dicts = py_merge_temp_rad(temps_min, radparam_min)
+            #  Merge
+            rad1_dicts = m_max.merge(radpower_max, on='fs', how='outer').merge(radparam_max, on='fs', how='outer').to_dict('records')
+            rad2_dicts = m_min.merge(radpower_min, on='fs', how='outer').merge(radparam_min, on='fs', how='outer').to_dict('records')
 
-            df1_dict = {k: v for k, v in df1.items() if k != 'Radiator parameter'}
-            df2_dict = {k: v for k, v in df2.items() if k != 'Radiator parameter'}
+            df1_dict = {k: v for k, v in df1.items() if k not in ('Radiator parameter','Design massFlow','Radiator power')}
+            df2_dict = {k: v for k, v in df2.items() if k not in ('Radiator parameter','Design massFlow','Radiator power')}
 
             # Max Processing
             if rad1_dicts:
@@ -267,7 +215,7 @@ def get_heatCalcfromXML_optimized(path_load_data: str,
         return df_final
 
     curr_group_cols = ['BFEnummer', 'husnummer_ID', 'EPCSerial', 'LabelStatus', 'ValidFrom', 'ValidTo', 'BuildingNumber', 'UseCode', 'YearOfConstruction']
-    max_min_group_cols = curr_group_cols[:6] + ['n'] + curr_group_cols[6:]
+    max_min_group_cols = curr_group_cols[:6] + ['fs'] + curr_group_cols[6:]
 
     curr_agg_dict = {
         'windows': 'sum', 'buildingparts': 'sum', 'linelosses': 'sum', 'ventilation': 'sum', 
@@ -277,9 +225,8 @@ def get_heatCalcfromXML_optimized(path_load_data: str,
     max_min_agg_dict = curr_agg_dict.copy()
     max_min_agg_dict.update({
         'InclMechanicalVentilationLoss': lambda x: list({bool(v) for v in x.dropna()}),
-        'T design supply': 'mean', 'T design return': 'mean', 'expected n': 'mean',
-        'K': 'sum', 'Tout design': 'mean', 'Tin design': 'mean', 'Design massFlow': 'sum',
-        'Tsupply': 'mean', 'Treturn': 'mean'
+        'T design supply': 'mean', 'T design return': 'mean', 'rad_n': 'mean', 'Radiator power': 'sum',
+        'K': 'sum', 'Tout design': 'mean', 'Tin design': 'mean', 'Design massFlow': 'sum'
     })
 
     currentDesign_BFE = apply_aggregation(df_curr, curr_group_cols, curr_agg_dict)

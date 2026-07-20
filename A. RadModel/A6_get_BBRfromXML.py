@@ -68,9 +68,7 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
             "husnummer_ID": label.get("husnummer_ID"),
             "streetName": label.get("streetName"),
             "house_number": label.get("house_number"),
-            #"meter_ID": label.get("meter_ID"),
             "EPCSerial": label.get("EPCSerial"),
-            #"location_ID": label.get("location_ID"),
             "LabelStatus": label.get("LabelStatus"),
             "ValidFrom": label.get("ValidFrom"),
             "ValidTo": label.get("ValidTo"),
@@ -81,13 +79,10 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
         
         xmls = label.get("xml", [])
         for xml in xmls:
-            # Build combined row (label metadata)
-            row = {}
-            row.update(label_meta)
+            row = dict(label_meta)
 
             if xml is None:
-                # just append a label-only row to each list
-                rows.append(row)
+                labelWithinRow.append(row)
                 continue
             
             # Type of system
@@ -105,7 +100,6 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
                 try:
                     zones = sum(xml["zones"]["TotalHeatedFloorArea"])
                 except Exception:
-                    # fallback: try to coerce to a numeric scalar if sum fails
                     try:
                         zones = float(xml["zones"]["TotalHeatedFloorArea"])
                     except Exception:
@@ -114,12 +108,10 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
                 zones = np.nan
             
             # Add the remaining data (BBR fields + extras)
-            # xml['BBR'] originally converted to a DataFrame row; assume it's dict-like
             bbr_fields = xml.get("BBR", {}) or {}
             if isinstance(bbr_fields, dict):
                 row.update(bbr_fields)
             else:
-                # if not dict-like, attempt to coerce to dict (keeps behavior tolerant)
                 try:
                     row.update(dict(bbr_fields))
                 except Exception:
@@ -132,45 +124,75 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
 
             labelWithinRow.append(row)
                 
-        if has_value(xmls):
-            
-            if len(labelWithinRow)>1:
-                # DataFrame for per-label processing
-                label_df = pd.DataFrame(labelWithinRow)    
-                        
-                # Check if BuildingNumber is unique in the label - if not then we aggregate together
-                all_same = label_df[['BuildingNumber','UseCode','YearOfConstruction']].nunique(dropna=False).eq(1).all()
-                
-                if all_same:
-                    agg = label_df.groupby(['BFEnummer', 'husnummer_ID', 'EPCSerial','streetName','house_number', #'location_ID', 'meter_ID', 
-                                                         'LabelStatus', 'ValidFrom', 'ValidTo', 'EPC_Class_Property', 'lat','lon',
-                                                         'BuildingNumber', 'UseCode', 'YearOfConstruction','YearOfRenovation'], dropna=False).agg({
-                                                             'Type of system': lambda x: list(set(chain.from_iterable(x.dropna()))),
-                                                             'hasDH': lambda x: list({bool(v) for v in x.dropna()}),
-                                                             'TotalHeatedFloorArea': 'sum',
-                                                             'Total Area': 'sum',
-                                                             'DwellingArea': 'sum',
-                                                             'CommercialArea': 'sum'
-                                                             }).reset_index()
-                    
-                    # Convert the entire DataFrame into a list of dictionaries and Use extend to add all items from new_records into rows
-                    rows.extend(agg.to_dict(orient='records'))
-                    
-                else:
-                    
-                    rows.extend(labelWithinRow)
+        # Evaluate grouping logic in pure Python
+        # Only rows from real xmls count (None-xml rows are pure label_meta
+        # copies and never received BBR fields like BuildingNumber)
+        real_rows = [r for r in labelWithinRow if 'BuildingNumber' in r]
 
-            else:
-                
-                rows.extend(labelWithinRow)
-                
-        else:
+        def _key(r):
+            # normalize NaN -> None so "missing == missing" compares equal
+            return tuple(None if pd.isna(v) else v
+                         for v in (r.get('BuildingNumber'), r.get('UseCode'),
+                                   r.get('YearOfConstruction')))
 
-            rows.append(row)
+        all_same = len(real_rows) > 1 and len({_key(r) for r in real_rows}) == 1
+
+        # Tag rows for aggregation and append to master list
+        for r in labelWithinRow:
+            r['_do_agg'] = all_same
             
-    # Create final DataFrame once (outside the label loop)
+        rows.extend(labelWithinRow)
+            
+    # Create final DataFrame once
     stamdata_BFE = pd.DataFrame(rows)
 
+    # --- Global Aggregation Logic for BBR ---
+    def apply_bbr_aggregation(df):
+        if df.empty or '_do_agg' not in df.columns:
+            return df
+        
+        df_agg = df[df['_do_agg'] == True].copy()
+        df_no_agg = df[df['_do_agg'] == False].copy()
+        
+        if not df_agg.empty:
+            # ALIGNED WITH HEATCALC (Removed geographic and messy metadata)
+            group_cols = ['BFEnummer', 'husnummer_ID', 'streetName', 'house_number', 'EPCSerial', 'LabelStatus', 
+                          'ValidFrom', 'ValidTo', 'BuildingNumber', 'UseCode', 'YearOfConstruction']
+            
+            # Ensure all grouping columns exist to prevent KeyError
+            for col in group_cols:
+                if col not in df_agg.columns: df_agg[col] = None
+                
+            agg_dict = {
+                'Type of system': lambda x: list(set(chain.from_iterable([i if isinstance(i, list) else [] for i in x.dropna()]))),
+                'hasDH': lambda x: list({bool(v) for v in chain.from_iterable(x.dropna())}),
+                'TotalHeatedFloorArea': 'sum',
+                'Total Area': 'sum',
+                'DwellingArea': 'sum',
+                'CommercialArea': 'sum',
+                'lat': 'mean',
+                'lon': 'mean',
+                'YearOfRenovation': 'max',
+                'EPC_Class_Property': lambda x: list(set(x.dropna()))
+            }
+            
+            # Only aggregate columns that actually exist in the dataframe
+            valid_agg_dict = {k: v for k, v in agg_dict.items() if k in df_agg.columns}
+            
+            df_grouped = df_agg.groupby(group_cols, dropna=False).agg(valid_agg_dict).reset_index()
+            
+            # Realign df_no_agg to match the columns we care about (drops streetName etc. implicitly if not listed)
+            # Or just keep everything from the original if you prefer, but let's sync the columns
+            # To be safe, we just drop the tag.
+            df_final = pd.concat([df_no_agg.drop(columns=['_do_agg']), df_grouped], ignore_index=True)
+        else:
+            df_final = df_no_agg.drop(columns=['_do_agg'])
+            
+        return df_final
+
+    # Apply aggregation
+    stamdata_BFE = apply_bbr_aggregation(stamdata_BFE)
+    
     # Correcting floor area between BBR and EPC (same logic as original: choose the larger)
     # Use max across the two columns, safely handling missing values
     if "Total Area" in stamdata_BFE.columns and "TotalHeatedFloorArea" in stamdata_BFE.columns:
@@ -179,7 +201,7 @@ def get_BBRfromXML(path_load_data: str, path_save_data: str) -> None:
         stamdata_BFE["FloorArea"] = stamdata_BFE["Total Area"]
     else:
         stamdata_BFE["FloorArea"] = stamdata_BFE.get("TotalHeatedFloorArea", pd.Series(np.nan, index=stamdata_BFE.index))
-        
+
     # SAVE DATA
     with open(path_save_data, "wb") as f:
         pickle.dump(stamdata_BFE, f)

@@ -166,8 +166,8 @@ def df_visuals(path_load_max: str, path_load_min: str, path_load_current: str, p
     HL_min.rename(columns = {'Actual Tsupply': 'Min Actual Tsupply', 'Actual Treturn': 'Min Actual Treturn'}, inplace = True)
         
     # Keywords to match (removes any column containing these words)
-    keywords_to_remove = ['expected n', 'HeatlossInclGain', 'InclMechanicalVentilationLoss', 'InternalHeatGain','BFEnummer','EPCSerial','LabelStatus','BuildingNumber',
-                          'windows', 'buildingparts', 'linelosses','ventilation','T design supply','T design return','Tin design','TsupplyList','TreturnList']
+    keywords_to_remove = ['HeatlossInclGain', 'InclMechanicalVentilationLoss', 'InternalHeatGain','BFEnummer','EPCSerial','LabelStatus','BuildingNumber',
+                          'windows', 'buildingparts', 'linelosses','ventilation','T design supply','T design return','Tin design']
     
     # Filter out columns that contain any of the keywords
     HL_max = HL_max[[col for col in HL_max.columns if not any(keyword in col for keyword in keywords_to_remove)]]
@@ -474,17 +474,17 @@ def wrangle_df(path_load_data: str, path_load_buildingdata: str, path_load_energ
     with open(path_load_buildingdata, 'wb') as f:
         pickle.dump(buildingdata, f)
 
-def adjust_nominal_values(path_data: str, radnb: list, Wsb: list, Tinb: list, Toutb: list, paramb: list, var: str) -> pd.DataFrame:
+def adjust_nominal_values(path_data: str, fsb: list, Wsb: list, Tinb: list, Toutb: list, paramb: list, var: str) -> pd.DataFrame:
     """
-    Select a single radiator-exponent / wind-speed / indoor-and-outdoor
+    Select a single radiator-sizing / wind-speed / indoor-and-outdoor
     design-temperature / parameter-statistic combination from the final
     dataset, and adjust the chosen variable using the minimum/maximum
     original-design capacity toggles (see toggles_to_adj_capacity()).
 
     path_data: str
         File path (.pkl) of the final dataframe (output of wrangle_df()).
-    radnb: list of float
-        Radiator exponent value(s) to select (e.g. [1.3]).
+    fsb: list of float
+        Radiator sizing value(s) to select (e.g. [1.0]).
     Wsb: list of float
         Wind speed value(s) to select [m/s].
     Tinb: list of float
@@ -511,7 +511,7 @@ def adjust_nominal_values(path_data: str, radnb: list, Wsb: list, Tinb: list, To
         df = pickle.load(f)
     
     # Select relevant parameters
-    df_adj = df.query('rad_n.isin(@radnb) & Ws.isin(@Wsb) & Tin.isin(@Tinb) & Tout.isin(@Toutb) & param_stats.isin(@paramb)')
+    df_adj = df.query('fs.isin(@fsb) & Ws.isin(@Wsb) & Tin.isin(@Tinb) & Tout.isin(@Toutb) & param_stats.isin(@paramb)')
     
     if var in ['Current_Nominal_Totalheatloss','Current_Nominal_Massflow','Predicted_Current_Totalheatloss','EPC_Current_Totalheatloss']:
         df_adj = df_adj.query('variable==@var')

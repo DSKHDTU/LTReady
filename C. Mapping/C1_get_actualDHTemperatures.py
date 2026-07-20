@@ -71,7 +71,7 @@ def itemToFloat(item, mapping: dict = None):
 def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_max: str,
                            path_save_min: str, path_save_max: str, path_load_BBR: str = None,
                            col_HL: str = 'TotalHeatloss', method: str = 'mnorm',
-                           paramb: list = None, Tinb: list = None, rad_nb: list = None) -> None:
+                           Tinb: list = None, Wsb: list = None, Toutb: list = None) -> None:
     """
     Calculate the minimum supply and return temperatures for each component
     and save the result.
@@ -101,15 +101,15 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         Either "mnorm" (use the EPC-derived nominal mass flow directly) or
         "deltaT" (derive a design mass flow from a fixed temperature drop;
         see module docstring). Default "mnorm".
-    paramb: list of str, optional
-        If `Tinb` is provided, restrict `path_load_actHL` to rows where
-        "param_stats" is in `paramb` (e.g. ['Coef']).
     Tinb: list of float, optional
         If provided, restrict `path_load_actHL` to rows where "Tin" is in
         `Tinb`.
-    rad_nb: list of float, optional
-        If provided, restrict the min/max design tables to rows where
-        "rad_n" is in `rad_nb`.
+    Wsb: list of float, optional
+        If provided, restrict `path_load_actHL` to rows where "Ws" is in
+        `Wsb`.
+    Toutb: list of float, optional
+        If provided, restrict `path_load_actHL` to rows where "Tout" is in
+        `Toutb`.
 
     Returns
     -------
@@ -125,39 +125,19 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
     heatloss = pd.read_parquet(path_load_actHL, engine='pyarrow')
     
     if Tinb is not None:
-        heatloss = heatloss.query('Tin==@Tinb & param_stats==@paramb')
+        heatloss = heatloss.query('Tin==@Tinb')
     
     #Merge the EPC radiator design values and actual heatloss calculations
     if path_load_min is not None:
         with open(path_load_min, 'rb') as f:
             minDesign = pickle.load(f)
-            
-        # The nominal K value is based on the nominal radiator exponent which is 1.3
-        # 1. Create a lookup table (Series)
-        k_13_lookup = minDesign[minDesign['rad_n'] == 1.3].set_index('component_id')['Min K']
-        
-        # 2. Update the 'K' column for the entire dataframe.
-        minDesign['Min K'] = minDesign['component_id'].map(k_13_lookup)
-        
-        if rad_nb is not None:
-            minDesign = minDesign[['component_id','Min Design massFlow','Min K','Min Tout design',"Min TotalHeatloss",'rad_n']].query('rad_n==@rad_nb')
-                    
+                                
         df_min = pd.merge(heatloss, minDesign, how = 'left', on = 'component_id')
         
     if path_load_max is not None:    
         with open(path_load_max, 'rb') as f:
             maxDesign = pickle.load(f) 
-            
-        # The nominal K value is based on the nominal radiator exponent which is 1.3
-        # 1. Create a lookup table (Series)
-        k_13_lookup = maxDesign[maxDesign['rad_n'] == 1.3].set_index('component_id')['Max K']
-        
-        # 2. Update the 'K' column for the entire dataframe.
-        maxDesign['Max K'] = maxDesign['component_id'].map(k_13_lookup)
-        
-        if rad_nb is not None:
-            maxDesign = maxDesign[['component_id','Max Design massFlow','Max K','rad_n']].query('rad_n==@rad_nb')
-            
+                        
         df_max = pd.merge(heatloss, maxDesign, how = 'left', on = 'component_id')
 
     if method == "mnorm":
@@ -195,19 +175,19 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         df_min = df_min.merge(BBR[['component_id','Type of system']], how = 'left')
         df_max = df_max.merge(BBR[['component_id','Type of system']], how = 'left')
         
-        # Set the actual, current heatloss
-        act_cur_HL = heatloss.query('Tin==20 & Ws==5 & Tout==-12')[['component_id','param_stats','TotalHeatloss']].reset_index(drop=True).rename(columns={'TotalHeatloss':'Actual Design TotalHeatloss'})
+        # Get the actual, peak heatloss
+        act_cur_HL = heatloss.query('Tin==@Tinb & Ws==@Wsb & Tout==@Toutb')[['component_id','param_stats','TotalHeatloss']].reset_index(drop=True).rename(columns={'TotalHeatloss':'Actual Design TotalHeatloss'})
         
         df_min = df_min.merge(act_cur_HL, how = 'left')
         df_max = df_max.merge(act_cur_HL, how = 'left')
         
         # Calculate supply and return temperature based on design values from EPC # Set the temperature drop to 20C for double string or 10C for single string 
 
-        df_min['Actual Design massFlow'] = df_min.apply(
+        df_min['Actual Design massFlow'] = df_min.swifter.apply(
             lambda x: get_radiator_design(
                 (60 if x['Type of system'] == 2 else 80),
                 (40 if x['Type of system'] == 2 else 70),
-                20,
+                x['Tin'],
                 x['Actual Design TotalHeatloss'],
                 None,
                 getKValue=False), axis=1) 
@@ -215,7 +195,7 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         # Make sure to bound the mass flow 
         df_min['Actual Design massFlow'] = np.where(df_min['Actual Design massFlow']>df_min['Min Design massFlow'],df_min['Min Design massFlow'],df_min['Actual Design massFlow'])
                 
-        df_min['Actual Tsupply'], df_min['Actual Treturn'] = zip(*df_min.apply(
+        df_min['Actual Tsupply'], df_min['Actual Treturn'] = zip(*df_min.swifter.apply(
             lambda x: get_supply_return_temperature(
                 x['Actual Design massFlow'], 
                 x['Min K'], 
@@ -227,11 +207,11 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         
         df_min.to_parquet(path_save_min)
     
-        df_max['Actual Design massFlow'] = df_max.apply(
+        df_max['Actual Design massFlow'] = df_max.swifter.apply(
             lambda x: get_radiator_design(
                 (60 if x['Type of system'] == 2 else 80),
                 (40 if x['Type of system'] == 2 else 70),
-                20,
+                x['Tin'],
                 x['Actual Design TotalHeatloss'],
                 None,
                 getKValue=False), axis=1) 
@@ -239,7 +219,7 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         # Make sure to bound the mass flow 
         df_max['Actual Design massFlow'] = np.where(df_max['Actual Design massFlow']>df_max['Max Design massFlow'],df_max['Max Design massFlow'],df_max['Actual Design massFlow'])
            
-        df_max['Actual Tsupply'], df_max['Actual Treturn'] = zip(*df_max.apply(
+        df_max['Actual Tsupply'], df_max['Actual Treturn'] = zip(*df_max.swifter.apply(
             lambda x: get_supply_return_temperature(
                 x['Actual Design massFlow'], 
                 x['Max K'], 
