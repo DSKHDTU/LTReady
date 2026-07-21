@@ -524,7 +524,8 @@ def model_solver(ts_train: pd.DataFrame, ts_test: pd.DataFrame, output_param: st
     return estimated_params, confidence_intervals, R_squared_adj, RN_RMSE, RMSE, resi, ts_test, result.success, best_k
 
 def run_modelling_scripts(path_load_data: str, path_save_data: str,
-                          on_cols: list = ['address', 'location_id', 'serial', 'BFEnummer']) -> None:
+                          on_cols: list = ['address', 'location_id', 'serial', 'BFEnummer'],
+                          seed: int = 42) -> None:
     """
     Train and test the space heating model for each unique building/meter
     defined by `on_cols`, and save the results.
@@ -536,6 +537,10 @@ def run_modelling_scripts(path_load_data: str, path_save_data: str,
         File path (.pkl) where the modelling results are saved.
     on_cols: list of str, optional
         Identifier columns for grouping (default: ['address', 'location_id', 'serial', 'BFEnummer']).
+    seed: int, optional
+        Random seed for the train/test split in prep_data(), ensuring
+        reproducible model parameters across runs. Default 42. Set to
+        None to disable (non-deterministic).
 
     Returns
     -------
@@ -568,13 +573,12 @@ def run_modelling_scripts(path_load_data: str, path_save_data: str,
         print("Processing:", selected_keys)
 
         # Prepare train/test datasets
-        ts_train, ts_test = prep_data(timeseries, selected_keys, on_cols=on_cols)
+        ts_train, ts_test = prep_data(timeseries, selected_keys, on_cols=on_cols,random_state=seed)
 
         # Train the model
         estimated_params, confidence_intervals, R_squared_adj, rn_rmse, rmse, residuals, ts_test, optimizer_status, k = model_solver(ts_train, ts_test)
 
         # Prepare params + confidence intervals
-        ## Check this part as it causes problem
         estimated_params = pd.DataFrame([estimated_params], columns=['UA0','UAw','Tb','gA','Phi0']).T.rename(columns={0:'Coef'})
         conf = pd.DataFrame(confidence_intervals, columns=['Conf_low','Conf_up'], index=['UA0','UAw','Tb','gA','Phi0'])
         

@@ -110,7 +110,7 @@ def get_weather(path_weather_save: str, year: int, api_key: str,
     """
 
     # SET START AND END TIME (TIMEZONE = GMT)
-    start_time = str(year) + '-01-01T00:00:00Z'
+    start_time = str(year-1) + '-12-31T23:00:00Z'
     end_time = str(year+1) + '-01-01T01:00:00Z'
 
     # GET DATA FROM DMI, parameters https://opendatadocs.dmi.govcloud.dk/en/Data/Meteorological_Observation_Data

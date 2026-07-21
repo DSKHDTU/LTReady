@@ -129,7 +129,7 @@ def find_outlier_energy(path_annual_SH: str, buildingdata: pd.DataFrame, lower_l
               
     return id_outlier    
 
-def df_visuals(path_load_max: str, path_load_min: str, path_load_current: str, path_save_HL: str, deltaT: bool = False) -> None:
+def df_visuals(path_load_max: str, path_load_min: str, path_load_current: str, path_save_HL: str, NC: bool = False) -> None:
     """
     Combine the maximum/minimum/current design heat loss and supply/return
     temperature tables into a single long-format ("variable"/"value")
@@ -148,8 +148,8 @@ def df_visuals(path_load_max: str, path_load_min: str, path_load_current: str, p
         (output of A8_get_aggXML.py, aggCurrent()).
     path_save_HL: str
         File path (.pkl) where the resulting long-format dataframe is saved.
-    deltaT: bool, optional
-        Set to True when processing the "deltaT" method output (drops the
+    NC: bool, optional
+        Set to True when processing the "NC" method output (drops the
         duplicated "Actual Design TotalHeatloss"/"Actual Design massFlow"
         columns from the maximum-design table). Default False.
 
@@ -173,7 +173,7 @@ def df_visuals(path_load_max: str, path_load_min: str, path_load_current: str, p
     HL_max = HL_max[[col for col in HL_max.columns if not any(keyword in col for keyword in keywords_to_remove)]]
     HL_min = HL_min[[col for col in HL_min.columns if not any(keyword in col for keyword in keywords_to_remove)]]
     
-    if deltaT:
+    if NC:
         # Remove Actual Design heat loss and massflow from one of the HLs as its the same for both df
         HL_max.drop(columns=['Actual Design TotalHeatloss','Actual Design massFlow'], inplace = True)
     

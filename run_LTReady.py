@@ -59,7 +59,7 @@ import sys
 
 # A short identifier for this case study, used as a suffix in all generated
 # file names.
-CASE_NAME = "case_study_id" #
+CASE_NAME = "EXAMPLE_CITY_NAME" #
 
 # Calendar year(s) of meter data available. If only one year of meter data is
 # available, set YEAR2 = None and HD_year2 = None; the workflow will then skip
@@ -70,22 +70,22 @@ YEAR2 = 2023  # Set to None if only one year of meter data is available
 # ---------------------------------------------------------------------- #
 # EMOWeb credentials (Part A) - used to retrieve EPC data via the EMOWeb API
 # ---------------------------------------------------------------------- #
-EMAIL = "your_email@here.com" #
-PASSWORD = "your_password_here" #
+EMAIL = "email@email.com" #
+PASSWORD = "PASSWORD" #
 
 # ---------------------------------------------------------------------- #
 # DMI Open Data API key (Part B) - used to retrieve weather data
 # Obtain a free key at https://opendatadocs.dmi.govcloud.dk/en/Authentication
 # ---------------------------------------------------------------------- #
-API_KEY_DMI = "your_api_key_here" #
+API_KEY_DMI = "DMI_API_KEY" #
 
 # DMI weather station IDs used to retrieve each weather parameter. These can
 # all be the same station, or different stations, depending on which nearby
 # stations measure each parameter. Find station IDs at
 # https://www.dmi.dk/friedata/observationer/
-STATION_TEMPERATURE = "station_id_for_outdoor_temperature" #
-STATION_WIND = "station_id_for_wind_data_(direction_and_speed)" #
-STATION_SOLAR_RADIATION = "station_id_for_solar_radiation" #
+STATION_TEMPERATURE = "STATION_ID_INCL_TEMPERATURE" #
+STATION_WIND = "STATION_ID_INCL_WIND_DIRECTION_AND_WIND_SPEED" #
+STATION_SOLAR_RADIATION = "STATION_ID_INCL_SUN_RADIATION" #
 
 # ---------------------------------------------------------------------- #
 # Meter and component identifiers
@@ -115,8 +115,9 @@ Tin_peak = 20
 # Radiator exponent. 1.3 is the recommended value.
 Radn = 1.3
 
-# Radiator sizing factor
+# Radiator sizing factor - select the index for which fsb to plot
 fs = [0.85,1.0,1.05]
+ifs = 2
 
 # Which model parameter statistic(s) to use: central estimate ("Coef") and/or
 # the 95% confidence bounds ("Conf_up", "Conf_low").
@@ -159,18 +160,18 @@ temp_HEX = 5
 # ---------------------------------------------------------------------- #
 # Final dataset / plotting selection (Part C)
 # The supply/return temperatures are calculated under building-level hydraulic 
-# constraints (mnorm) or network-level hydraulic constraints (deltaT)
-# mnorm uses the calculated design mass flow. Network-level constraint fixes
+# constraints (BC) or network-level hydraulic constraints (NC)
+# BC uses the calculated design mass flow. Network-level constraint fixes
 # temperature drop to 10 or 20 C at peak condition.
 # ---------------------------------------------------------------------- #
 
-# Toggle to select the final dataset / plot based on the "mnorm" method
-# (True) or the "deltaT" method (False). See C1_get_actualDHTemperatures.py
+# Toggle to select the final dataset / plot based on the "BC" method
+# (True) or the "NC" method (False). See C1_get_actualDHTemperatures.py
 # for a description of both methods.
-get_mnorm = True
+get_BC = True
 
-# Variables available for analysis/plotting using the "mnorm" method
-var_mnorm = ['Minimum_Treturn',  # Minimum return temperature using model-predicted heat loss as current peak heat loss
+# Variables available for analysis/plotting using the "BC" method
+var_BC = ['Minimum_Treturn',  # Minimum return temperature using model-predicted heat loss as current peak heat loss
              'Minimum_Tsupply',  # Minimum supply temperature using model-predicted heat loss as current peak heat loss
              'Historical_Nominal_Massflow', # Nominal mass flow
              'Radiator_K',               # Nominal K-value for the radiator system
@@ -179,12 +180,19 @@ var_mnorm = ['Minimum_Treturn',  # Minimum return temperature using model-predic
              'EPC_calculated_Treturn',            # Minimum return temperature using EPC-calculated heat loss as current peak heat loss
              'EPC_calculated_Tsupply']            # Minimum supply temperature using EPC-calculated heat loss as current peak heat loss
 
-# Variables available for analysis/plotting using the "deltaT" method
-var_deltaT = var_mnorm + ['Current_Nominal_Totalheatloss', # Peak heat loss saved to verify the peak heat loss is preserved by the deltaT method
+# Variables available for analysis/plotting using the "NC" method
+var_NC = var_BC + ['Current_Nominal_Totalheatloss', # Peak heat loss saved to verify the peak heat loss is preserved by the NC method
                           'Current_Nominal_Massflow']      # Peak mass flow at the chosen temperature drop (10 or 20 degC)
                      
-# Index into var_mnorm / var_deltaT selecting the variable to obtain final dataset (starting from 0. var_mnorm ends with index 7.)
+# Index into var_BC / var_NC selecting the variable to obtain final dataset (starting from 0. var_BC ends with index 7.)
 ind = 1
+
+# ---------------------------------------------------------------------- #
+# Model reproducibility (Part B)
+# Set a fixed integer seed for the train/test split in B6 to ensure
+# reproducible model parameters across runs. Set to None to disable.
+# ---------------------------------------------------------------------- #
+RANDOM_STATE = 42
 
 #%% CONFIGURATION OF FOLDERS
 # Assumes the script is run from the project root
@@ -264,16 +272,16 @@ path_agg_pred_heatloss = os.path.join(DIR_DATA_FINAL, f"pred_agg_heat_loss_{CASE
 path_agg_annual_SH_year1 = os.path.join(DIR_DATA_FINAL, f"annual_agg_SH_pred_{CASE_NAME}_{YEAR1}")
 path_agg_annual_SH_year2 = os.path.join(DIR_DATA_FINAL, f"annual_agg_SH_pred_{CASE_NAME}_{YEAR2}") if YEAR2 is not None else None
 
-path_agg_max_with_SH_mnorm = os.path.join(DIR_DATA_FINAL, f"agg_max_org_design_with_SH_mnorm_{CASE_NAME}.pkl")
-path_agg_min_with_SH_mnorm = os.path.join(DIR_DATA_FINAL, f"agg_min_org_design_with_SH_mnorm_{CASE_NAME}.pkl")
-path_agg_max_with_SH_deltaT = os.path.join(DIR_DATA_FINAL, f"agg_max_org_design_with_SH_deltaT_{CASE_NAME}.pkl")
-path_agg_min_with_SH_deltaT = os.path.join(DIR_DATA_FINAL, f"agg_min_org_design_with_SH_deltaT_{CASE_NAME}.pkl")
+path_agg_max_with_SH_BC = os.path.join(DIR_DATA_FINAL, f"agg_max_org_design_with_SH_BC_{CASE_NAME}.pkl")
+path_agg_min_with_SH_BC = os.path.join(DIR_DATA_FINAL, f"agg_min_org_design_with_SH_BC_{CASE_NAME}.pkl")
+path_agg_max_with_SH_NC = os.path.join(DIR_DATA_FINAL, f"agg_max_org_design_with_SH_NC_{CASE_NAME}.pkl")
+path_agg_min_with_SH_NC = os.path.join(DIR_DATA_FINAL, f"agg_min_org_design_with_SH_NC_{CASE_NAME}.pkl")
 
-path_final_df_mnorm_wOutlier = os.path.join(DIR_DATA_FINAL, f"final_df_mnorm_wOutlier_{CASE_NAME}.pkl")
-path_final_df_deltaT_wOutlier = os.path.join(DIR_DATA_FINAL, f"final_df_deltaT_wOutlier_{CASE_NAME}.pkl")
+path_final_df_BC_wOutlier = os.path.join(DIR_DATA_FINAL, f"final_df_BC_wOutlier_{CASE_NAME}.pkl")
+path_final_df_NC_wOutlier = os.path.join(DIR_DATA_FINAL, f"final_df_NC_wOutlier_{CASE_NAME}.pkl")
 
-path_final_df_mnorm = os.path.join(DIR_DATA_FINAL, f"final_df_mnorm_{CASE_NAME}.pkl")
-path_final_df_deltaT = os.path.join(DIR_DATA_FINAL, f"final_df_deltaT_{CASE_NAME}.pkl")
+path_final_df_BC = os.path.join(DIR_DATA_FINAL, f"final_df_BC_{CASE_NAME}.pkl")
+path_final_df_NC = os.path.join(DIR_DATA_FINAL, f"final_df_NC_{CASE_NAME}.pkl")
 
 
 #%% 1st Work Flow - Part A: EPC data and radiator nominal values
@@ -449,7 +457,8 @@ from B6_get_actualUAs import run_modelling_scripts
 
 run_modelling_scripts(path_load_data=path_timeseries,
                        path_save_data=path_model_params,
-                       on_cols=meter_id_list)
+                       on_cols=meter_id_list,
+                       seed = RANDOM_STATE)
 
 # ---------------------------------------------------------------------- #
 # Predict space heating heat loss for the specified outdoor design conditions
@@ -517,28 +526,28 @@ print("Starting 3rd workflow. Part C: Obtaining minimum supply and return temper
 # ---------------------------------------------------------------------- #
 from C1_get_actualDHTemperatures import get_LTDH_temperatures
 
-# mnorm method
+# Building-level constraint
 get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
                        path_load_min=path_agg_min,
                        path_load_max=path_agg_max,
-                       path_save_min=path_agg_min_with_SH_mnorm,
-                       path_save_max=path_agg_max_with_SH_mnorm,
+                       path_save_min=path_agg_min_with_SH_BC,
+                       path_save_max=path_agg_max_with_SH_BC,
                        path_load_BBR=None,
                        col_HL='TotalHeatloss',
-                       method='mnorm',
+                       method='BC',
                        Tinb=Tin_peak,
                        Wsb=None, 
                        Toutb=None)
 
-# deltaT method
+# Network-level constraint
 get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
                        path_load_min=path_agg_min,
                        path_load_max=path_agg_max,
-                       path_save_min=path_agg_min_with_SH_deltaT,
-                       path_save_max=path_agg_max_with_SH_deltaT,
+                       path_save_min=path_agg_min_with_SH_NC,
+                       path_save_max=path_agg_max_with_SH_NC,
                        path_load_BBR=path_agg_bbr,
                        col_HL='TotalHeatloss',
-                       method='deltaT',
+                       method='NC',
                        Tinb=Tin_peak,
                        Wsb=Ws_peak, 
                        Toutb=Tout_peak)
@@ -548,51 +557,51 @@ get_LTDH_temperatures(path_load_actHL=path_agg_pred_heatloss,
 # ---------------------------------------------------------------------- #
 from C2_get_df_visuals import df_visuals, tag_outliers, wrangle_df
 
-# mnorm method
-df_visuals(path_load_max=path_agg_max_with_SH_mnorm,
-           path_load_min=path_agg_min_with_SH_mnorm,
+# Building-level Constraint
+df_visuals(path_load_max=path_agg_max_with_SH_BC,
+           path_load_min=path_agg_min_with_SH_BC,
            path_load_current=path_agg_current,
-           path_save_HL=path_final_df_mnorm_wOutlier,
-           deltaT=False)
+           path_save_HL=path_final_df_BC_wOutlier,
+           NC=False)
 
-tag_outliers(path_main_df=path_final_df_mnorm_wOutlier,
+tag_outliers(path_main_df=path_final_df_BC_wOutlier,
               path_load_BBR=path_agg_bbr,
               path_annual_SH_YR1=path_agg_annual_SH_year1,
-              path_save_data=path_final_df_mnorm_wOutlier,   
+              path_save_data=path_final_df_BC_wOutlier,   
               path_annual_SH_YR2=path_agg_annual_SH_year2, 
               lower_limit = lower_limit,
               upper_limit = upper_limit)
 
 # Final data wrangle (removing outliers and consolidating EPC rates)
-wrangle_df(path_load_data=path_final_df_mnorm_wOutlier,
+wrangle_df(path_load_data=path_final_df_BC_wOutlier,
            path_load_buildingdata=path_agg_bbr,
            path_load_energy=path_agg_annual_SH_year1,
-           path_save_data=path_final_df_mnorm,
+           path_save_data=path_final_df_BC,
            Tinb=Tin_peak,
            Toutb=Tout_peak,
            col_build=None,
            removeOutliers=True)
 
-# deltaT method
-df_visuals(path_load_max=path_agg_max_with_SH_deltaT,
-           path_load_min=path_agg_min_with_SH_deltaT,
+# Network-level Constraint
+df_visuals(path_load_max=path_agg_max_with_SH_NC,
+           path_load_min=path_agg_min_with_SH_NC,
            path_load_current=path_agg_current,
-           path_save_HL=path_final_df_deltaT_wOutlier,
-           deltaT=True)
+           path_save_HL=path_final_df_NC_wOutlier,
+           NC=True)
 
-tag_outliers(path_main_df=path_final_df_deltaT_wOutlier,
+tag_outliers(path_main_df=path_final_df_NC_wOutlier,
               path_load_BBR=path_agg_bbr,
               path_annual_SH_YR1=path_agg_annual_SH_year1,
-              path_save_data=path_final_df_deltaT_wOutlier,
+              path_save_data=path_final_df_NC_wOutlier,
               path_annual_SH_YR2=path_agg_annual_SH_year2, 
               lower_limit = lower_limit,
               upper_limit = upper_limit)
 
 # Final data wrangle (removing outliers and consolidating EPC rates)
-wrangle_df(path_load_data=path_final_df_deltaT_wOutlier,
+wrangle_df(path_load_data=path_final_df_NC_wOutlier,
            path_load_buildingdata=path_agg_bbr,
            path_load_energy=path_agg_annual_SH_year1,
-           path_save_data=path_final_df_deltaT,
+           path_save_data=path_final_df_NC,
            Tinb=Tin_peak,
            Toutb=Tout_peak,
            col_build=None,
@@ -606,12 +615,12 @@ print("3rd workflow completed successfully.")
 from C2_get_df_visuals import adjust_nominal_values, map_plot
 
 # Select the dataframe for the chosen method
-if get_mnorm:
-    path_final_use = path_final_df_mnorm
-    var_to_select = var_mnorm
+if get_BC:
+    path_final_use = path_final_df_BC
+    var_to_select = var_BC
 else:
-    path_final_use = path_final_df_deltaT
-    var_to_select = var_deltaT
+    path_final_use = path_final_df_NC
+    var_to_select = var_NC
 
 selected_var = var_to_select[ind]
 
@@ -632,14 +641,14 @@ with open(path_agg_bbr, 'rb') as f:
 
 # Plot a map of the selected metric
 map_plot(df_temp=adjust_nominal_values(path_data=path_final_use,
-                                        fsb=fs,
+                                        fsb=[fs[ifs]],
                                         Wsb=[Ws_peak],
                                         Tinb=[Tin_peak],
                                         Toutb=[Tout_peak],
                                         paramb=["Coef"],
                                         var=var_to_select[1]),
          df_nom_heatloss=adjust_nominal_values(path_data=path_final_use,
-                                                fsb=fs,
+                                                fsb=[fs[ifs]],
                                                 Wsb=[Ws_peak],
                                                 Tinb=[Tin_peak],
                                                 Toutb=[Tout_peak],
@@ -652,11 +661,11 @@ map_plot(df_temp=adjust_nominal_values(path_data=path_final_use,
          title_plot=(f"LTDH: <70\u00b0C, MTDH: 70-90\u00b0C. Tin = {Tin_peak}\u00b0C, "
                       f"Tout = {Tout_peak}\u00b0C, Ws = {Ws_peak} m/s, no sun. "
                       f"Radiator exponent = {Radn}."
-                      f"Radiator sizing = {fs}."),
+                      f"Sizing factor = {fs[ifs]}."),
          path_ids=compID)
 
 #%% Final datasets ready for analysis
 # ---------------------------------------------------------------------- #
-# path_final_df_mnorm and path_final_df_deltaT contain the final, per-component
-# datasets (with outliers removed) for the "mnorm" and "deltaT" methods
+# path_final_df_BC and path_final_df_NC contain the final, per-component
+# datasets (with outliers removed) for the "BC" and "NC" methods
 # respectively. Use these for further analysis or custom plotting.

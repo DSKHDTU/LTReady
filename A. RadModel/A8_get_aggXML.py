@@ -23,9 +23,9 @@ import pickle
 import pandas as pd
 import numpy as np
 import ast
+import math
 
 from A5_get_DHTemperatures import get_supply_return_temperature
-
 
 def getCmpID4Agg(df: pd.DataFrame, compID: pd.DataFrame) -> pd.DataFrame:
     """
@@ -235,6 +235,7 @@ def get_latest_EPC(path_load_data: str, compID: pd.DataFrame) -> pd.DataFrame:
         min_digits: int = 3,
         proximity: int = 10,
     ):
+        import re
         
         """Remove rows whose building number appears only in non-valid rows and
         looks 'strange' (e.g. three-digit 105 when no similar numbers exist in valid rows)."""
@@ -799,7 +800,7 @@ def aggCurrent(path_load_data: str, path_save_data: str, EPCs2Keep: pd.DataFrame
     aggregated_df['NumberOfBuildings'] = aggregated_df["BuildingNumber"].apply(lambda x: len(x))
     
     with open(path_save_data, 'wb') as f:
-        pickle.dump(aggregated_df, f) 
+        pickle.dump(aggregated_df, f)  
 
 def aggMaxMin(minOrMax: str, path_load_data: str, path_load_data_BBR: str, path_save_data: str,
               EPCs2Keep: pd.DataFrame, compID: pd.DataFrame) -> None:
@@ -889,7 +890,7 @@ def aggMaxMin(minOrMax: str, path_load_data: str, path_load_data_BBR: str, path_
     aggregated_df['NumberOfBuildings'] = aggregated_df["BuildingNumber"].apply(lambda x: len(x))
 
     with open(path_save_data, 'wb') as f:
-        pickle.dump(aggregated_df, f) 
+        pickle.dump(aggregated_df, f)  
  
 def get_aggXMLs(path_bbr_xml: str, compID: pd.DataFrame, path_agg_bbr: str,
                 path_current_design: str, path_agg_current: str,

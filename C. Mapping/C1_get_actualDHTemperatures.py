@@ -10,8 +10,8 @@ component, based on:
       from the EPC data (A5/A8).
 
 Two methods are supported (see `method` argument of get_LTDH_temperatures()):
-    - "mnorm": uses the EPC-derived nominal mass flow directly.
-    - "deltaT": derives a design mass flow from a fixed temperature drop
+    - "BC": Building-level Constraint - uses the EPC-derived nominal mass flow directly.
+    - "NC": Network-level Constraint - derives a design mass flow from a fixed temperature drop
       (20 degC for two-string/"Dual" heating systems, 10 degC for
       one-string/"Unified" systems), bounded by the EPC-derived nominal
       mass flow.
@@ -21,6 +21,7 @@ Two methods are supported (see `method` argument of get_LTDH_temperatures()):
 import pickle
 import pandas as pd
 import numpy as np
+import swifter
 
 from A5_get_DHTemperatures import get_supply_return_temperature, get_radiator_design
 
@@ -70,7 +71,7 @@ def itemToFloat(item, mapping: dict = None):
 
 def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_max: str,
                            path_save_min: str, path_save_max: str, path_load_BBR: str = None,
-                           col_HL: str = 'TotalHeatloss', method: str = 'mnorm',
+                           col_HL: str = 'TotalHeatloss', method: str = 'BC',
                            Tinb: list = None, Wsb: list = None, Toutb: list = None) -> None:
     """
     Calculate the minimum supply and return temperatures for each component
@@ -93,14 +94,14 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         original-design table is saved.
     path_load_BBR: str, optional
         File path (.pkl) of the aggregated BBR table (output of
-        A8_get_aggXML.py, aggBBR()). Required if method="deltaT".
+        A8_get_aggXML.py, aggBBR()). Required if method="NC".
     col_HL: str, optional
         Name of the heat loss column to use from `path_load_actHL`
         (default "TotalHeatloss").
     method: str, optional
-        Either "mnorm" (use the EPC-derived nominal mass flow directly) or
-        "deltaT" (derive a design mass flow from a fixed temperature drop;
-        see module docstring). Default "mnorm".
+        Either "BC" (use the EPC-derived nominal mass flow directly) or
+        "NC" (derive a design mass flow from a fixed temperature drop;
+        see module docstring). Default "BC".
     Tinb: list of float, optional
         If provided, restrict `path_load_actHL` to rows where "Tin" is in
         `Tinb`.
@@ -117,7 +118,7 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         Writes two parquet files: `path_save_min` (based on the minimum
         original-design table) and `path_save_max` (based on the maximum
         original-design table), each with added "Actual Tsupply" and
-        "Actual Treturn" columns (and, for method="deltaT", an "Actual
+        "Actual Treturn" columns (and, for method="NC", an "Actual
         Design massFlow" column).
     """
 
@@ -140,7 +141,7 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
                         
         df_max = pd.merge(heatloss, maxDesign, how = 'left', on = 'component_id')
 
-    if method == "mnorm":
+    if method == "BC":
         # Calculate supply and return temperature based on design values from EPC
 
             df_min['Actual Tsupply'], df_min['Actual Treturn'] = zip(*df_min.apply(
@@ -163,7 +164,7 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
             
             df_max.to_parquet(path_save_max)
             
-    elif method == "deltaT":
+    elif method == "NC":
         # Convert "type of system" to float and average
         if path_load_BBR is not None:
             with open(path_load_BBR, 'rb') as f:
@@ -232,5 +233,5 @@ def get_LTDH_temperatures(path_load_actHL: str, path_load_min: str, path_load_ma
         df_max.to_parquet(path_save_max)
         
     else:
-        print("Method doesn't exist - check spelling mnorm or deltaT")
+        print("Method doesn't exist - check spelling BC or NC")
 
