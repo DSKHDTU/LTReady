@@ -209,10 +209,10 @@ If you use LTReady in your work, please cite [*paper*](URL)
 @article{ltready,
    author = {Donya Sheikh Khan, Kevin Michael Smith and Christian Anker Hviid},
    doi = {},
-   issue = {1},
-   journal = {Energy},
+   issue = {},
+   journal = {},
    pages = {},
-   title = {Low-temperature district heating readiness of multi-family buildings: Potential and constraints in a Danish network of 2,441 buildings},
+   title = {Low-temperature district heating readiness of 2,443 multi-family buildings: a network-wide evaluation},
    volume = {},
    year = {2026},
 }
