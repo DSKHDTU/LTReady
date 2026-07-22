@@ -11,8 +11,9 @@ Summer method assumptions:
     - SH is approximately 0 during the warmest month (August).
 
 Steps:
-    1) August is used as the reference month where SH ~ 0 (warmest month,
-       assuming most occupants are back from summer holiday).
+    1) August is used as the reference month where SH ~ 0. If August data
+       is unavailable for a meter, July is used as fallback, then June.
+       If none of these months are available, the meter is skipped.
     2) For each day type (Mon-Thu, Fri, Sat, Sun), the median hourly heat
        consumption in August is taken as the DHW profile for that hour/day type.
     3) This DHW profile is applied to the full year; SH is calculated as the
@@ -142,11 +143,20 @@ def apply_disagg(file: str, file_save: str, on_cols: list = ['address', 'locatio
                                              ['timestamp', 'heat_power'] + on_cols]
         subset_energy_data = subset_energy_data.reset_index(drop=True)
 
-        # Extract and process August data
-        consumption_august = dayType(subset_energy_data, month=8)
+        # Try August first, fall back to July, then June
+        reference_month = None
+        for month in [8, 7, 6]:
+            candidate = dayType(subset_energy_data, month=month)
+            if not candidate.empty:
+                reference_month = candidate
+                break
+
+        if reference_month is None:
+            print(f"Skipping meter {serialnr} - no data in June, July or August")
+            continue
 
         # Apply Summer Method
-        processed_data = summer_method(subset_energy_data.copy(), consumption_august, modified=True)
+        processed_data = summer_method(subset_energy_data.copy(), reference_month, modified=True)
         results.append(processed_data)
 
         print(f"Processed {i}/{len(serialnrs)} meters")
@@ -154,8 +164,15 @@ def apply_disagg(file: str, file_save: str, on_cols: list = ['address', 'locatio
     # Concatenate all processed data once at the end
     propty_SH = pd.concat(results, ignore_index=True)
     
+    # Align serial dtype before merging
+    propty_SH['serial'] = propty_SH['serial'].astype(energy_data['serial'].dtype)
+        
     # Merge with original data in a single operation
-    energy_wSH_data = energy_data.merge(propty_SH, on=['timestamp', 'heat_power'] + on_cols, how='left')
+    energy_wSH_data = energy_data.merge(
+        propty_SH[['timestamp'] + on_cols + ['DHW', 'SH']], 
+        on=['timestamp'] + on_cols, 
+        how='left'
+    )
 
     energy_wSH_data.to_parquet(file_save)
 

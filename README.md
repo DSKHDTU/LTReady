@@ -75,6 +75,8 @@ final dataset and an interactive map.
 See the docstrings in `run\\\_LTReady.py` and each module for details on inputs,
 outputs and parameters.
 
+![LTReady workflow](LTReady_workflow.png)
+
 ## Requirements
 
 * Python 3.10+ (developed and tested with Python 3.12)
@@ -95,15 +97,18 @@ listed here for copyright/license awareness when using or redistributing
 this tool. Always check the package's own repository/PyPI page for the
 current license terms.
 
-|Package|Used for|License|
-|-|-|-|
-|[pandas](https://github.com/pandas-dev/pandas)|Data wrangling and tabular data structures|[BSD 3-Clause](https://github.com/pandas-dev/pandas/blob/main/LICENSE)|
-|[numpy](https://github.com/numpy/numpy)|Numerical computing|[BSD 3-Clause](https://github.com/numpy/numpy/blob/main/LICENSE.txt)|
-|[requests](https://github.com/psf/requests)|HTTP requests to the EMOWeb and DMI APIs|[Apache License 2.0](https://github.com/psf/requests/blob/main/LICENSE)|
-|[scipy](https://github.com/scipy/scipy)|Optimization (model fitting)|[BSD 3-Clause](https://github.com/scipy/scipy/blob/main/LICENSE.txt)|
-|[statsmodels](https://github.com/statsmodels/statsmodels)|OLS regression (cross-year deviation check, model fitting statistics)|[BSD 3-Clause](https://github.com/statsmodels/statsmodels/blob/main/LICENSE.txt)|
-|[plotly](https://github.com/plotly/plotly.py)|Interactive map visualization|[MIT License](https://github.com/plotly/plotly.py/blob/master/LICENSE.txt)|
-|[pyarrow](https://github.com/apache/arrow)|Reading/writing parquet files|[Apache License 2.0](https://github.com/apache/arrow/blob/main/LICENSE.txt)|
+| Package | Version | Used for | License |
+|---|---|---|---|
+| [pandas](https://github.com/pandas-dev/pandas) | 3.0.0 | Data wrangling and tabular data structures | [BSD 3-Clause](https://github.com/pandas-dev/pandas/blob/main/LICENSE) |
+| [numpy](https://github.com/numpy/numpy) | 2.4.2 | Numerical computing | [BSD 3-Clause](https://github.com/numpy/numpy/blob/main/LICENSE.txt) |
+| [requests](https://github.com/psf/requests) | 2.32.5 | HTTP requests to the EMOWeb and DMI APIs | [Apache License 2.0](https://github.com/psf/requests/blob/main/LICENSE) |
+| [scipy](https://github.com/scipy/scipy) | 1.16.3 | Optimization (model fitting) | [BSD 3-Clause](https://github.com/scipy/scipy/blob/main/LICENSE.txt) |
+| [statsmodels](https://github.com/statsmodels/statsmodels) | 0.14.6 | OLS regression (cross-year deviation check, model fitting statistics) | [BSD 3-Clause](https://github.com/statsmodels/statsmodels/blob/main/LICENSE.txt) |
+| [plotly](https://github.com/plotly/plotly.py) | 6.3.0 | Interactive map visualization | [MIT License](https://github.com/plotly/plotly.py/blob/master/LICENSE.txt) |
+| [pyarrow](https://github.com/apache/arrow) | 21.0.0 | Reading/writing parquet files | [Apache License 2.0](https://github.com/apache/arrow/blob/main/LICENSE.txt) |
+> **Note:** The versions listed above reflect the environment in which LTReady
+> was developed and tested. Older versions may work but have not been verified.
+> It is recommended to use at least these versions to ensure compatibility.
 
 The following Python standard library modules are also used and require no
 separate installation: `pickle`, `os`, `ast`, `copy`, `itertools`,
@@ -128,11 +133,21 @@ buildings sharing a single meter), containing:
    * `bfe` - BFE number(s) belonging to this component
    * `epc` - EPC Serial(s) belonging to this component (optional)
    * `serial` - meter serial number(s) belonging to this component
+   * `location_id` - meter location number(s) belonging to this component
    * `n\\\_serial` - number of meter serials in this component
 3. **Raw hourly heat meter data** (one parquet file per year, e.g. `hourly\\\_meter\\\_raw\\\_{CASE\\\_NAME}\\\_{YEAR1}`): hourly heat
-meter readings containing at least `timestamp`, `serial`, `energy`, `volume` , `heat\\\_power`,
+meter readings containing at least `timestamp`, `serial`, `location_id`, `energy`, `volume` , `heat\\\_power`,
 `volume\\\_flow`, `inlet\\\_flow\\\_temperature`, `return\\\_flow\\\_temperature`, and
 any identifier columns listed in `meter\\\_id\\\_list`.
+Raw hourly meter data MUST contain a data for a whole year, incl. months in June, July or August for correct disaggregation of SH consumption from total consumption.
+serial and location_id preferably as strings.
+values for each measurement variable must be: 
+    * energy - Wh
+    * heat_power - W
+    * volume - m3
+    * volume_flow - m3/s
+    * inlet_flow_temperature - °C
+    * return_flow_temperature - °C
 4. **EMOWeb credentials** (`EMAIL`, `PASSWORD`) and a **DMI Open Data API
 key** (`API\\\_KEY\\\_DMI`), set in `run\\\_LTReady.py`.
 5. **DMI weather station IDs** for outdoor temperature, wind direction, wind

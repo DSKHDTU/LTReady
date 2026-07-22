@@ -34,13 +34,24 @@ Required input data
                            same format as "bfe")
        - "serial"       : meter serial number(s) belonging to this component
                            (scalar, list, or stringified list)
+       - "location_id"  : meter location number(s) belonging to this component
+                           (scalar, list, or stringified list)
        - "n_serial"     : number of meter serials in this component
 
 3. Raw hourly meter data (`hourly_meter_raw_{CASE_NAME}_{YEAR1}`, `hourly_meter_raw_{CASE_NAME}_{YEAR2}`): parquet
    files with hourly heat meter readings, containing at least "timestamp",
-   "serial", "energy", "volume", "heat_power", "volume_flow", "inlet_flow_temperature",
+   "serial","location_id", "energy", "volume", "heat_power", "volume_flow", "inlet_flow_temperature",
    "return_flow_temperature", and any columns listed in `meter_id_list`.
-   
+   Raw hourly meter data MUST contain a data for a whole year, incl. months in June, July or August for correct disaggregation of SH consumption from total consumption.
+   serial and location_id preferably as strings.
+   values for each measurement variable must be: 
+      - energy - Wh
+      - heat_power - W
+      - volume - m3
+      - volume_flow - m3/s
+      - inlet_flow_temperature - °C
+      - return_flow_temperature - °C
+
 The filenames of the three input datasets must match as specified.
 The column/variable names of the datasets must match the variable names listed 
 above.
