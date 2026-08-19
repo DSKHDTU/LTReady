@@ -105,7 +105,7 @@ current license terms.
 | [scipy](https://github.com/scipy/scipy) | 1.16.3 | Optimization (model fitting) | [BSD 3-Clause](https://github.com/scipy/scipy/blob/main/LICENSE.txt) |
 | [statsmodels](https://github.com/statsmodels/statsmodels) | 0.14.6 | OLS regression (cross-year deviation check, model fitting statistics) | [BSD 3-Clause](https://github.com/statsmodels/statsmodels/blob/main/LICENSE.txt) |
 | [plotly](https://github.com/plotly/plotly.py) | 6.3.0 | Interactive map visualization | [MIT License](https://github.com/plotly/plotly.py/blob/master/LICENSE.txt) |
-| [pyarrow](https://github.com/apache/arrow) | 21.0.0 | Reading/writing parquet files | [Apache License 2.0](https://github.com/apache/arrow/blob/main/LICENSE.txt) |
+| [swifter](https://github.com/jmcarpenter2/swifter) | 1.4.0 | Speeding up pandas apply operations | [MIT License](https://github.com/jmcarpenter2/swifter/blob/master/LICENSE) |
 > **Note:** The versions listed above reflect the environment in which LTReady
 > was developed and tested. Older versions may work but have not been verified.
 > It is recommended to use at least these versions to ensure compatibility.
@@ -228,7 +228,9 @@ This project is licensed under the BSD 3-Clause Clear License - see the
 
    [LICENSE](LICENSE) file for details.
 
+## Disclaimer
 
+> **Notice:** This script is provided "as is", without warranty of any kind, express or implied. The author/creator is not liable or accountable for any outcomes, data errors, or decisions made based on the use of this tool. Additionally, the author assumes no responsibility for maintaining compatibility or fixing broken functionality resulting from future updates, deprecations, or breaking changes in underlying third-party APIs or Python packages.
 
 Copyright © 2026 Technical University of Denmark.
 
