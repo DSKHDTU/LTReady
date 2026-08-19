@@ -120,7 +120,7 @@ def extract_EPCLabel_data(EPC_identifier: str, EMAIL: str, PASSWORD: str):
                         label = result.find("EnergyLabelClassification").text if result is not None else None
                         #print(label)
     except:
-        print('XML missing')
+        print('INFO: No XML was fetched for the provided EPC Identifier')
         label = None
     
     return label
@@ -544,7 +544,7 @@ def get_EPC_data(EnergyLabelSerialIdentifier: str, EMAIL: str, PASSWORD: str) ->
             buildings.append(building)
         
     except:
-        print('XML missing')
+        print('INFO: No XML was fetched for the provided EPC Identifier')
         buildings.append(None)
     
     return buildings

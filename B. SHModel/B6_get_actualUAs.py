@@ -273,8 +273,9 @@ def model_solver(ts_train: pd.DataFrame, ts_test: pd.DataFrame, output_param: st
             # Covariance matrix with psuedo-inverse
             cov_matrix = sigma_squared * np.linalg.pinv(hessian_matrix)
 
-        # Standard errors for parameters
-        standard_errors = np.sqrt(np.diag(cov_matrix))
+        # Standard errors for parameters - Ensure diagonal elements are non-negative before taking square root
+        diag_variance = np.maximum(0, np.diag(cov_matrix))
+        standard_errors = np.sqrt(diag_variance)
 
         # Confidence intervals (1 - alpha) - using the t-statistics
         t_critical = t.ppf(1 - alpha/2, n - p)
