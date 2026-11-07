@@ -203,17 +203,14 @@ definitions and how to obtain a free API key, see:
 
 ## Citation
 
-If you use LTReady in your work, please cite [*paper*](URL)
+If you use LTReady in your work, please cite [*https://doi.org/10.1016/j.enbuild.2026.118497*]
 
 ```bibtex
 @article{ltready,
    author = {Donya Sheikh Khan, Kevin Michael Smith and Christian Anker Hviid},
-   doi = {},
-   issue = {},
-   journal = {},
-   pages = {},
-   title = {Low-temperature district heating readiness of 2,443 multi-family buildings: a network-wide evaluation},
-   volume = {},
+   doi = {10.1016/j.enbuild.2026.118497},
+   journal = {Energy & Buildings},
+   title = {Low-temperature district heating readiness of 2443 multi-family buildings: A network-wide evaluation},
    year = {2026},
 }
 ```
