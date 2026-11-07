@@ -86,14 +86,11 @@ PASSWORD = "PASSWORD" #
 
 # ---------------------------------------------------------------------- #
 # DMI Open Data API key (Part B) - used to retrieve weather data
-# Obtain a free key at https://opendatadocs.dmi.govcloud.dk/en/Authentication
-# ---------------------------------------------------------------------- #
-API_KEY_DMI = "DMI_API_KEY" #
-
 # DMI weather station IDs used to retrieve each weather parameter. These can
 # all be the same station, or different stations, depending on which nearby
 # stations measure each parameter. Find station IDs at
 # https://www.dmi.dk/friedata/observationer/
+# ---------------------------------------------------------------------- #
 STATION_TEMPERATURE = "STATION_ID_INCL_TEMPERATURE" #
 STATION_WIND = "STATION_ID_INCL_WIND_DIRECTION_AND_WIND_SPEED" #
 STATION_SOLAR_RADIATION = "STATION_ID_INCL_SUN_RADIATION" #
@@ -420,7 +417,6 @@ from B3_get_weather_data import get_weather
 
 get_weather(path_weather_save=path_weather_year1,
             year=YEAR1,
-            api_key=API_KEY_DMI,
             station_temperature=STATION_TEMPERATURE,
             station_wind_direction=STATION_WIND,
             station_wind_speed=STATION_WIND,
@@ -429,7 +425,6 @@ get_weather(path_weather_save=path_weather_year1,
 if YEAR2 is not None:
     get_weather(path_weather_save=path_weather_year2,
                 year=YEAR2,
-                api_key=API_KEY_DMI,
                 station_temperature=STATION_TEMPERATURE,
                 station_wind_direction=STATION_WIND,
                 station_wind_speed=STATION_WIND,

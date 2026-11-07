@@ -11,15 +11,22 @@ since not all stations measure all parameters. DMI station IDs can be found at:
 https://www.dmi.dk/friedata/observationer/ or in the DMI station catalogue
 (https://www.dmi.dk/fileadmin/Rapporter/TR/tr13-13.pdf).
 
-A free DMI Open Data API key can be obtained at:
-https://opendatadocs.dmi.govcloud.dk/en/Authentication
+API update
+----------
+DMI has moved its Open Data API to a new hostname, opendataapi.dmi.dk, which
+no longer requires an API key. The old hostname (dmigw.govcloud.dk) is being
+phased out. Documentation:
+https://www.dmi.dk/friedata/dokumentation/meteorological-observation-api
+Fair-use limit: 500 requests per 5 seconds.
 """
 
 import pandas as pd
 import requests
 
+BASE_URL = 'https://opendataapi.dmi.dk/v2/metObs/collections/observation/items'
 
-def dmi_data(stationID: str, start_time: str, end_time: str, parameter: str, api_key: str) -> pd.DataFrame:
+
+def dmi_data(stationID: str, start_time: str, end_time: str, parameter: str) -> pd.DataFrame:
     """
     Retrieve a single weather parameter for a single station from the DMI
     Open Data API.
@@ -34,10 +41,8 @@ def dmi_data(stationID: str, start_time: str, end_time: str, parameter: str, api
     parameter: str
         DMI parameter ID to retrieve (e.g. "temp_dry", "wind_dir",
         "wind_speed", "radia_glob"). See
-        https://opendatadocs.dmi.govcloud.dk/en/Data/Meteorological_Observation_Data
+        https://www.dmi.dk/friedata/dokumentation/meteorological-observation-api
         for the full list of available parameters.
-    api_key: str
-        DMI Open Data API key.
 
     Returns
     -------
@@ -45,37 +50,45 @@ def dmi_data(stationID: str, start_time: str, end_time: str, parameter: str, api
         Dataframe with columns "timestamp" and "properties.value", containing
         the raw (sub-hourly) observations for the requested parameter.
     """
-    URL = 'https://dmigw.govcloud.dk/v2/metObs/collections/observation/items'
+    params = {'datetime': f'{start_time}/{end_time}',
+              'limit': 300000,
+              'stationId': stationID,
+              'parameterId': parameter,
+              }
 
-    body = {'datetime': f'{start_time}/{end_time}',
-            'limit': '100000',
-            'stationId': stationID,
-            'parameterId': parameter,
-            'api-key': api_key,
-            }
+    # FETCH ALL PAGES (follow the "next" link if the result is paginated)
+    features = []
+    url = BASE_URL
+    while url:
+        response = requests.get(url, params=params, timeout=120)
+        response.raise_for_status()
+        data = response.json()
+        features.extend(data.get('features', []))
 
-    response = requests.get(URL, params=body)
-    weather_data = pd.json_normalize(response.json()['features'])
+        next_links = [link['href'] for link in data.get('links', []) if link.get('rel') == 'next']
+        url = next_links[0] if next_links else None
+        params = None  # the "next" link already contains all query parameters
 
-    # MAKE "PROPERTIES OBSERVED" INDEX
-    weather_data.index = weather_data['properties.observed']
+    if not features:
+        raise ValueError(f'No data returned from DMI for station {stationID}, '
+                         f'parameter {parameter}, period {start_time} to {end_time}.')
 
-    # DELETE UNUSED COLUMNS
-    weather_data = weather_data.drop(['id', 'type', 'geometry.coordinates', 'geometry.type',
-                      'properties.created', 'properties.observed', 'properties.parameterId', 'properties.stationId'],
-                     axis='columns')
+    weather_data = pd.json_normalize(features)
 
-    # TRANSFORM INDEX TO DATETIME FORMAT
-    weather_data.index.names = ['timestamp']
-    weather_data.index = pd.to_datetime(weather_data.index)
-    weather_data = weather_data.reset_index()
+    # KEEP ONLY TIMESTAMP AND VALUE
+    weather_data = weather_data[['properties.observed', 'properties.value']]
+    weather_data = weather_data.rename(columns={'properties.observed': 'timestamp'})
+
+    # TRANSFORM TIMESTAMP TO DATETIME FORMAT AND SORT
+    weather_data['timestamp'] = pd.to_datetime(weather_data['timestamp'])
+    weather_data = weather_data.sort_values('timestamp').reset_index(drop=True)
 
     return weather_data
 
 
-def get_weather(path_weather_save: str, year: int, api_key: str,
-                 station_temperature: str, station_wind_direction: str,
-                 station_wind_speed: str, station_solar_radiation: str) -> None:
+def get_weather(path_weather_save: str, year: int,
+                station_temperature: str, station_wind_direction: str,
+                station_wind_speed: str, station_solar_radiation: str) -> None:
     """
     Retrieve hourly outdoor temperature, wind direction, wind speed and solar
     radiation for a given year from DMI Open Data, and save the merged,
@@ -85,8 +98,6 @@ def get_weather(path_weather_save: str, year: int, api_key: str,
         File path (.parquet) where the resulting hourly weather dataset is saved.
     year: int
         Calendar year to retrieve weather data for.
-    api_key: str
-        DMI Open Data API key.
     station_temperature: str
         DMI station ID used to retrieve outdoor temperature ("temp_dry").
     station_wind_direction: str
@@ -113,11 +124,11 @@ def get_weather(path_weather_save: str, year: int, api_key: str,
     start_time = str(year-1) + '-12-31T23:00:00Z'
     end_time = str(year+1) + '-01-01T01:00:00Z'
 
-    # GET DATA FROM DMI, parameters https://opendatadocs.dmi.govcloud.dk/en/Data/Meteorological_Observation_Data
-    temp = dmi_data(station_temperature, start_time, end_time, 'temp_dry', api_key)
-    wind_dir = dmi_data(station_wind_direction, start_time, end_time, 'wind_dir', api_key)
-    wind_speed = dmi_data(station_wind_speed, start_time, end_time, 'wind_speed', api_key)
-    sun = dmi_data(station_solar_radiation, start_time, end_time, 'radia_glob', api_key)
+    # GET DATA FROM DMI, parameters: https://www.dmi.dk/friedata/dokumentation/meteorological-observation-api
+    temp = dmi_data(station_temperature, start_time, end_time, 'temp_dry')
+    wind_dir = dmi_data(station_wind_direction, start_time, end_time, 'wind_dir')
+    wind_speed = dmi_data(station_wind_speed, start_time, end_time, 'wind_speed')
+    sun = dmi_data(station_solar_radiation, start_time, end_time, 'radia_glob')
 
     # GIVE COLUMNS NAMES
     temp.rename(columns={'properties.value': 'Temperature'}, inplace=True)
@@ -131,21 +142,18 @@ def get_weather(path_weather_save: str, year: int, api_key: str,
     wind_speed_hourly = wind_speed.resample('h', on='timestamp').mean()
     sun_hourly = sun.resample('h', on='timestamp').mean()
 
-    # MERGE WEATHER DATA
+    # MERGE WEATHER DATA AND FILL NAN VALUES
     weather_hourly = pd.concat([temp_hourly, wind_dir_hourly, wind_speed_hourly, sun_hourly], axis=1)
     weather_hourly = weather_hourly.reset_index()
     weather_hourly = weather_hourly.ffill()
 
-    # CONVERT TO LOCAL TIME ZONE AND FILL NAN VALUES
+    # CONVERT TO LOCAL TIME ZONE
     weather_hourly['timestamp'] = pd.to_datetime(weather_hourly['timestamp']).dt.tz_convert('Europe/Copenhagen')
 
     # REMOVE TIMEZONE INFORMATION
     weather_hourly['timestamp'] = weather_hourly['timestamp'].dt.tz_localize(None)
 
-    # CHECK IF THERE ARE DUPLICATED TIME ENTRIES
-    # print(weather_hourly[weather_hourly.duplicated(subset='timestamp',keep=False)])
-
-    # REMOVE DUPLICATED TIME ENTRIES BY AVERAGING THE VALUES OF THE REMAINING COLUMNS
+    # REMOVE DUPLICATED TIME ENTRIES (DST change in autumn) BY AVERAGING
     weather_cleaned = weather_hourly.groupby('timestamp').mean().reset_index()
 
     weather_cleaned.to_parquet(path_weather_save)

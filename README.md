@@ -80,7 +80,6 @@ outputs and parameters.
 ## Requirements
 
 * Python 3.10+ (developed and tested with Python 3.12)
-* A DMI Open Data API key (free, see [Data Sources](#data-sources--api-documentation))
 * An EMOWeb account (for retrieving EPC data, see [Data Sources](#data-sources--api-documentation))
 
 Install the required Python packages with:
@@ -148,8 +147,7 @@ values for each measurement variable must be:
     * volume_flow - m3/s
     * inlet_flow_temperature - °C
     * return_flow_temperature - °C
-4. **EMOWeb credentials** (`EMAIL`, `PASSWORD`) and a **DMI Open Data API
-key** (`API\\\_KEY\\\_DMI`), set in `run\\\_LTReady.py`.
+4. **EMOWeb credentials** (`EMAIL`, `PASSWORD`), set in `run\\\_LTReady.py`.
 5. **DMI weather station IDs** for outdoor temperature, wind direction, wind
 speed and solar radiation (`STATION\\\_TEMPERATURE`,
 `STATION\\\_WIND\\\_DIRECTION`, `STATION\\\_WIND\\\_SPEED`,
@@ -166,7 +164,7 @@ input data" section at the top of `run\\\_LTReady.py`.
 2. Place your raw hourly meter data files in `data/raw/`.
 3. Make sure the file and variable names of the Master ID, Component ID and heat meter data files match as specified.
 4. Open `run\\\_LTReady.py` and fill in the **USER-SPECIFIC INPUT** section:
-`CASE\\\_NAME`, `YEAR1`/`YEAR2`, `EMAIL`/`PASSWORD`, `API\\\_KEY\\\_DMI`, the DMI
+`CASE\\\_NAME`, `YEAR1`/`YEAR2`, `EMAIL`/`PASSWORD`, the DMI
 station IDs, `path\\\_comp\\\_id`, `path\\\_master\\\_id`, `meter\\\_id\\\_list`, the
 outdoor design conditions (`Tout`, `Ws`, `Tin`, `Radn`), heating
 degree-days, and the heat exchanger temperature offset (`temp\\\_HEX`).
@@ -198,12 +196,12 @@ page on energy labelling data:
 * **Weather data** (outdoor temperature, wind direction, wind speed, solar
 radiation) is retrieved from the Danish Meteorological Institute (DMI)
 Open Data API. For API documentation, available datasets, parameter
-definitions and how to obtain a free API key, see:
+definitions, see:
 [https://www.dmi.dk/friedata/dokumentation/apis](https://www.dmi.dk/friedata/dokumentation/apis)
 
 ## Citation
 
-If you use LTReady in your work, please cite [*https://doi.org/10.1016/j.enbuild.2026.118497*]
+If you use LTReady in your work, please cite [*paper*](https://doi.org/10.1016/j.enbuild.2026.118497)
 
 ```bibtex
 @article{ltready,
